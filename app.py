@@ -11,8 +11,8 @@ def init_db():
     conn = sqlite3.connect("warranty_data.db")
     cursor = conn.cursor()
     # Menggunakan purchase_date dan duration_months untuk perhitungan otomatis
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS warranties (
+   cursor.execute("""
+    CREATE TABLE IF NOT EXISTS warranties_v2 (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             serial_number TEXT UNIQUE,
             product_name TEXT,
@@ -59,8 +59,7 @@ def calculate_remaining_warranty(purchase_date_str, duration_months):
 def get_data():
     conn = sqlite3.connect("warranty_data.db")
     # Ambil data mentah dari database
-    df_raw = pd.read_sql_query("SELECT serial_number, product_name, customer_name, purchase_date, duration_months, status FROM warranties", conn)
-    conn.close()
+    df_raw = pd.read_sql_query("SELECT serial_number, product_name, customer_name, purchase_date, duration_months, status FROM warranties_v2", conn)
     
     if df_raw.empty:
         return pd.DataFrame()
@@ -87,7 +86,7 @@ def insert_data(sn, produk, pelanggan, tgl_beli, durasi):
         conn = sqlite3.connect("warranty_data.db")
         cursor = conn.cursor()
         cursor.execute("""
-            INSERT INTO warranties (serial_number, product_name, customer_name, purchase_date, duration_months, status)
+            INSERT INTO warranties_v2 (serial_number, product_name, customer_name, purchase_date, duration_months, status)
             VALUES (?, ?, ?, ?, ?, ?)
         """, (sn, produk, pelanggan, str(tgl_beli), int(durasi), "Aktif"))
         conn.commit()
