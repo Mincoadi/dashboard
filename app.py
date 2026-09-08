@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 st.set_page_config(page_title="Portal Garansi", page_icon="📦", layout="wide")
 
 # ==========================================
-# 1b. KUSTOMISASI WARNA SIDEBAR & TATA LETAK
+# 1b. KUSTOMISASI WARNA SIDEBAR & CSS HEADER
 # ==========================================
 st.markdown("""
 <style>
@@ -50,23 +50,44 @@ st.markdown("""
         background-color: #ebf5fb;
     }
 
-    /* HEADER: RAPATKAN GAMBAR & JUDUL */
-    div[data-testid="column"]:has(img) {
-        padding: 0px !important;
-        margin: 0px !important;
+    /* ===== HEADER RAPAT TOTAL ===== */
+    /* Hilangkan semua margin/padding di area header */
+    .main-header {
+        margin: 0 !important;
+        padding: 0 !important;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 2px;
     }
-    .stImage {
-        margin-bottom: -10px !important;
+    .main-header .logo-row {
+        display: flex;
+        gap: 5px;
+        margin-bottom: 0px;
     }
-    /* Hilangkan margin default pada judul dan caption */
-    .header-title {
-        margin-top: -15px !important;
-        margin-bottom: 0px !important;
-        padding-top: 0px !important;
+    .main-header .logo-row img {
+        max-height: 100px;
+        width: auto;
     }
-    .header-caption {
-        margin-top: -10px !important;
-        margin-bottom: 5px !important;
+    .main-header h1 {
+        margin: 0 !important;
+        padding: 0 !important;
+        font-size: 2.5rem;
+    }
+    .main-header p {
+        margin: 0 !important;
+        padding: 0 !important;
+        font-size: 1rem;
+        color: #666;
+    }
+    /* Hilangkan margin bawaan Streamlit pada elemen header */
+    .stMarkdown {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    div[data-testid="stVerticalBlock"] > div:first-child {
+        margin: 0 !important;
+        padding: 0 !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -78,13 +99,11 @@ USER_ADMIN = "admin"
 PASSWORD_ADMIN = "admin123"
 
 # ==========================================
-# 3. FUNGSI COUNTDOWN (HANYA BULAN & HARI)
+# 3. FUNGSI COUNTDOWN
 # ==========================================
 def get_countdown_component(seconds_left, uid, height=50):
-    """Menampilkan countdown hanya dalam bulan dan hari (tanpa jam/menit/detik)."""
     if seconds_left <= 0:
         return components.html("<span style='color:red; font-weight:bold;'>🔴 Expired</span>", height=30)
-
     html_code = f"""
     <div id="countdown_{uid}" style="font-size:16px; font-weight:bold;"></div>
     <script>
@@ -115,7 +134,7 @@ def get_countdown_component(seconds_left, uid, height=50):
     return components.html(html_code, height=height)
 
 # ==========================================
-# 4. INISIALISASI DATABASE
+# 4. DATABASE
 # ==========================================
 def init_db():
     conn = sqlite3.connect("warranty_data.db")
@@ -134,26 +153,22 @@ def init_db():
     """)
     conn.commit()
     conn.close()
-
 init_db()
 
 # ==========================================
-# 5. FUNGSI HITUNG SISA (BULAN & HARI)
+# 5. FUNGSI HITUNG SISA
 # ==========================================
 def calculate_warranty(purchase_datetime_str, duration_months):
     try:
         purchase_date = datetime.strptime(purchase_datetime_str[:10], "%Y-%m-%d").date()
         expiry_date = purchase_date + relativedelta(months=duration_months)
         today = date.today()
-
         if today > expiry_date:
             return "🔴 Expired", "Expired", 0
-
         delta = expiry_date - today
         total_days = delta.days
         months = total_days // 30
         days = total_days % 30
-
         teks = ""
         if months > 0:
             teks += f"{months} Bln "
@@ -161,18 +176,16 @@ def calculate_warranty(purchase_datetime_str, duration_months):
             teks += f"{days} Hari "
         if teks == "":
             teks = "0 Hari"
-
         expiry_datetime = datetime.combine(expiry_date, datetime.min.time())
         seconds_left = (expiry_datetime - datetime.now()).total_seconds()
         if seconds_left < 0:
             seconds_left = 0
-
         return "🟢 Aktif", teks.strip(), int(seconds_left)
     except Exception:
         return "🔴 Error", "Data Tidak Valid", 0
 
 # ==========================================
-# 6. FUNGSI CRUD DATABASE (DENGAN CACHING)
+# 6. CRUD
 # ==========================================
 @st.cache_data(ttl=5)
 def get_data():
@@ -184,7 +197,6 @@ def get_data():
     conn.close()
     if df_raw.empty:
         return pd.DataFrame()
-
     processed = []
     for _, row in df_raw.iterrows():
         status_icon, sisa_teks, sisa_detik = calculate_warranty(
@@ -238,43 +250,46 @@ def delete_data(sn):
     return True
 
 # ==========================================
-# 7. SESSION STATE LOGIN
+# 7. SESSION STATE
 # ==========================================
 if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
 
 # ==========================================
-# 8. TAMPILAN UTAMA (HEADER SANGAT RAPAT)
+# 8. HEADER RAPAT TOTAL (HTML + CSS)
 # ==========================================
-# Baris pertama: dua gambar bersebelahan
-col1, col2 = st.columns([0.3, 0.3])
-with col1:
-    if os.path.exists("images (5).jpg"):
-        st.image("images (5).jpg", width=140)
-    else:
-        st.write("📦")
-with col2:
-    if os.path.exists("images (3).svg"):
-        st.image("images (3).svg", width=140)
-    else:
-        st.write("📦")
+# Baca gambar sebagai base64 agar bisa dimasukkan ke HTML
+def get_image_base64(path):
+    try:
+        import base64
+        with open(path, "rb") as f:
+            return base64.b64encode(f.read()).decode()
+    except:
+        return None
 
-# Baris kedua: judul dan caption dengan CSS inline (tanpa margin berlebih)
-st.markdown("""
-    <h1 style="margin-top: -15px; margin-bottom: 0px; padding-top: 0px; font-size: 2.5rem;">
-        Portal Garansi Produk Resmi
-    </h1>
-    <p style="margin-top: -10px; margin-bottom: 5px; font-size: 1rem; color: #666;">
-        Sistem Pelacakan Garansi untuk Pelanggan & Panel Manajemen Admin
-    </p>
-""", unsafe_allow_html=True)
+img1_base64 = get_image_base64("images (5).jpg")
+img2_base64 = get_image_base64("images (3).svg")
 
+# Buat HTML header dengan gambar inline (base64) agar tidak ada margin sama sekali
+header_html = f"""
+<div class="main-header">
+    <div class="logo-row">
+        {f'<img src="data:image/jpeg;base64,{img1_base64}" alt="Logo 1" style="height:90px;">' if img1_base64 else '📦'}
+        {f'<img src="data:image/svg+xml;base64,{img2_base64}" alt="Logo 2" style="height:90px;">' if img2_base64 else '📦'}
+    </div>
+    <h1>Portal Garansi Produk Resmi</h1>
+    <p>Sistem Pelacakan Garansi untuk Pelanggan & Panel Manajemen Admin</p>
+</div>
+"""
+st.markdown(header_html, unsafe_allow_html=True)
+
+# Garis pemisah
 st.markdown("---")
 
 df_garansi = get_data()
 
 # -------------------------------------------------------------------------
-# AREA PELANGGAN: CEK GARANSI
+# AREA PELANGGAN
 # -------------------------------------------------------------------------
 st.write("### 🔍 Pusat Cek Status Garansi (Pelanggan)")
 cari_sn = st.text_input("Masukkan Nomor Serial Produk Anda:", placeholder="Ketik nomor serial di sini...")
@@ -321,7 +336,6 @@ with st.sidebar:
         if btn_logout:
             st.session_state['logged_in'] = False
             st.rerun()
-
         st.markdown("---")
         st.subheader("📝 Input Garansi Baru")
         with st.form("form_input", clear_on_submit=True):
@@ -342,7 +356,6 @@ with st.sidebar:
                         st.error("❌ Gagal! Nomor Serial sudah terdaftar.")
                 else:
                     st.warning("⚠️ Mohon isi semua kolom yang wajib!")
-
         st.markdown("---")
         st.subheader("🗑️ Hapus Data Garansi")
         with st.form("form_hapus", clear_on_submit=True):
@@ -363,7 +376,7 @@ with st.sidebar:
                     st.warning("⚠️ Masukkan Nomor Serial terlebih dahulu!")
 
 # -------------------------------------------------------------------------
-# AREA ADMIN: TABEL DATA & GRAFIK (POPOVER)
+# AREA ADMIN
 # -------------------------------------------------------------------------
 if st.session_state['logged_in']:
     st.write("### 📋 Semua Data Garansi (Sisi Admin)")
@@ -381,17 +394,13 @@ if st.session_state['logged_in']:
             use_container_width=True
         )
 
-        # ==========================================
         # POPOVER 1: MONITORING UNIT WARRANTY
-        # ==========================================
         with st.popover("📋 Monitoring Unit Warranty", use_container_width=True):
             st.write("### 📋 Monitoring Unit Warranty")
             st.caption("Jumlah unit garansi per pelanggan")
-            
             customer_counts = df_garansi['Pelanggan'].value_counts().reset_index()
             customer_counts.columns = ['Pelanggan', 'Jumlah Unit']
             st.dataframe(customer_counts, use_container_width=True, hide_index=True)
-            
             fig, ax = plt.subplots(figsize=(6, 3))
             bars = ax.barh(customer_counts['Pelanggan'], customer_counts['Jumlah Unit'], color='#2e86c1')
             ax.set_xlabel('Jumlah Unit')
@@ -404,15 +413,12 @@ if st.session_state['logged_in']:
             plt.tight_layout()
             st.pyplot(fig)
 
-        # ==========================================
         # POPOVER 2: STATISTIK GARANSI
-        # ==========================================
         with st.popover("📊 Lihat Statistik Garansi", use_container_width=True):
             st.write("### 📊 Statistik Garansi")
             status_counts = df_garansi['Status'].value_counts()
             aktif = status_counts.get('🟢 Aktif', 0)
             expired = status_counts.get('🔴 Expired', 0)
-
             col1, col2, col3 = st.columns(3)
             with col1:
                 st.metric("📦 Total Data", len(df_garansi))
@@ -420,7 +426,6 @@ if st.session_state['logged_in']:
                 st.metric("🟢 Aktif", aktif)
             with col3:
                 st.metric("🔴 Expired", expired)
-
             fig, ax = plt.subplots(figsize=(6, 4))
             colors = ['#2ecc71' if x == '🟢 Aktif' else '#e74c3c' for x in status_counts.index]
             wedges, texts, autotexts = ax.pie(
@@ -436,7 +441,6 @@ if st.session_state['logged_in']:
                 autotext.set_fontweight('bold')
             ax.axis('equal')
             st.pyplot(fig)
-
     else:
         st.info("Database masih kosong. Silakan tambah data melalui formulir di sidebar kiri.")
 else:
