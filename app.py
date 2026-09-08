@@ -238,8 +238,8 @@ with col1:
     else:
         st.write("📦")
 with col2:
-    if os.path.exists("images (3).jpg"):
-        st.image("images (3).jpg", width=150)
+    if os.path.exists("images (3).svg"):
+        st.image("images (3).svg", width=150)
     else:
         st.write("📦")
 
