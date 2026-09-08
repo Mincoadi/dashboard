@@ -110,11 +110,11 @@ if 'logged_in' not in st.session_state:
 
 # --- TAMPILAN UTAMA DASHBOARD ---
 # Menampilkan Foto Logo dari folder GitHub Anda secara lokal
-NAMA_FILE_LOGO = "hv.iv"
+NAMA_FILE_LOGO = "hv.avif"
 
 try:
     # Menampilkan foto logo dari folder dengan lebar 150 pixel
-    st.image(NAMA_FILE_LOGO, width=150)
+    st.image(NAMA_FILE_LOGO, width=200)
 except Exception:
     pass
 
