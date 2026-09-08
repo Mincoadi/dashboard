@@ -114,7 +114,7 @@ NAMA_FILE_LOGO = "hv.iv"
 
 try:
     # Menampilkan foto logo dari folder dengan lebar 150 pixel
-    st.image(NAMA_FILE_LOGO, width=200)
+    st.image(NAMA_FILE_LOGO, width=150)
 except Exception:
     pass
 
