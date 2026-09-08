@@ -4,6 +4,7 @@ import sqlite3
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 import streamlit.components.v1 as components
+import matplotlib.pyplot as plt
 
 # ==========================================
 # 1. KONFIGURASI HALAMAN
@@ -52,8 +53,15 @@ def get_countdown_component(expiry_dt_str, uid, height=50):
 # ==========================================
 # 3. INISIALISASI DATABASE
 # ==========================================
-USER_ADMIN = "admin"
-PASSWORD_ADMIN = "admin123"  # Ganti dengan st.secrets jika perlu
+# Ambil kredensial dari secrets (harus buat file .streamlit/secrets.toml)
+try:
+    USER_ADMIN = st.secrets["USER_ADMIN"]
+    PASSWORD_ADMIN = st.secrets["PASSWORD_ADMIN"]
+except Exception:
+    # Fallback sementara (jangan dipakai di produksi)
+    USER_ADMIN = "admin"
+    PASSWORD_ADMIN = "admin123"
+    st.warning("⚠️ Gunakan st.secrets untuk keamanan! Buat file .streamlit/secrets.toml")
 
 def init_db():
     conn = sqlite3.connect("warranty_data.db")
@@ -125,7 +133,7 @@ def get_data():
             "Pelanggan": row['customer_name'],
             "Waktu Beli": row['purchase_datetime'],
             "Durasi Awal": f"{row['duration_months']} Bulan",
-            "DurasiBulan": row['duration_months'],   # untuk hitung expiry
+            "DurasiBulan": row['duration_months'],
             "Sisa Garansi": remaining_auto,
             "Status": status_auto,
             "Foto_Base64": row['product_image']
@@ -204,6 +212,9 @@ if cari_sn:
                 st.markdown(f"**🔹 Nomor Serial:** {row['Nomor Serial']}")
                 st.markdown(f"**📦 Produk:** {row['Nama Produk']}  |  **👤 Pelanggan:** {row['Pelanggan']}")
                 st.markdown(f"**Status:** {row['Status']}")
+                # ===== TAMBAHAN: TAMPILKAN SISA GARANSI DI SISI PELANGGAN =====
+                st.markdown(f"**⏳ Sisa Garansi:** {row['Sisa Garansi']}")
+                # ==============================================================
                 get_countdown_component(expiry_time_str, idx, height=50)
                 st.divider()
         else:
@@ -224,7 +235,7 @@ with st.sidebar:
         if btn_login:
             if input_username == USER_ADMIN and input_password == PASSWORD_ADMIN:
                 st.session_state['logged_in'] = True
-                st.success("🔓 Login berhasil!")
+                st.toast("🔓 Login berhasil!", icon="✅")
                 st.rerun()
             else:
                 st.error("❌ Username atau Password salah! Akses ditolak.")
@@ -233,6 +244,7 @@ with st.sidebar:
         btn_logout = st.button("Keluar / Logout")
         if btn_logout:
             st.session_state['logged_in'] = False
+            st.toast("🔒 Logout berhasil!", icon="👋")
             st.rerun()
         st.markdown("---")
         st.subheader("📝 Input Garansi Baru")
@@ -249,7 +261,7 @@ with st.sidebar:
                     sukses = insert_data(input_sn.strip(), input_produk.strip(), input_pelanggan.strip(),
                                          input_tgl, input_jam, input_durasi)
                     if sukses:
-                        st.success("🎉 Data berhasil disimpan!")
+                        st.toast("🎉 Data berhasil disimpan!", icon="✅")
                         st.rerun()
                     else:
                         st.error("❌ Gagal! Nomor Serial sudah terdaftar.")
@@ -260,12 +272,15 @@ with st.sidebar:
         st.subheader("🗑️ Hapus Data Garansi")
         with st.form("form_hapus", clear_on_submit=True):
             hapus_sn = st.text_input("Nomor Serial yang Ingin Dihapus:", placeholder="Masukkan nomor serial...")
-            submit_hapus = st.form_submit_button("Hapus Permanen Data")
+            konfirmasi = st.checkbox("☑️ Saya yakin ingin menghapus data ini secara permanen!")
+            submit_hapus = st.form_submit_button("Hapus Permanen")
             if submit_hapus:
-                if hapus_sn:
+                if not konfirmasi:
+                    st.warning("⚠️ Centang kotak konfirmasi terlebih dahulu!")
+                elif hapus_sn:
                     berhasil_hapus = delete_data(hapus_sn.strip())
                     if berhasil_hapus:
-                        st.success(f"🗑️ Data dengan SN '{hapus_sn}' berhasil dihapus!")
+                        st.toast(f"🗑️ Data dengan SN '{hapus_sn}' berhasil dihapus!", icon="🗑️")
                         st.rerun()
                     else:
                         st.error("❌ Gagal! Nomor Serial tidak ditemukan di database.")
@@ -285,11 +300,28 @@ if st.session_state['logged_in']:
             mime="text/csv",
             use_container_width=True
         )
+        
+        # ===== TAMBAHAN GRAFIK STATISTIK =====
+        st.write("### 📊 Statistik Garansi")
+        status_counts = df_garansi['Status'].value_counts()
+        if not status_counts.empty:
+            fig, ax = plt.subplots(figsize=(6, 4))
+            colors = ['#2ecc71' if x == '🟢 Aktif' else '#e74c3c' for x in status_counts.index]
+            ax.pie(status_counts, labels=status_counts.index, autopct='%1.1f%%', colors=colors, startangle=90)
+            ax.axis('equal')
+            st.pyplot(fig)
+        # ====================================
     else:
         st.info("Database masih kosong. Silakan tambah data melalui formulir di sidebar kiri.")
 else:
     st.info("ℹ️ Panel data admin dan fitur rekap laporan disembunyikan. Silakan login pada menu sidebar untuk membukanya.")
 
 # ==========================================
-# 8. TIDAK ADA AUTO-REFRESH DI SINI!
+# 8. FOOTER
+# ==========================================
+st.divider()
+st.caption("© 2026 Portal Garansi Resmi. Hak Cipta Dilindungi.")
+
+# ==========================================
+# 9. TIDAK ADA AUTO-REFRESH DI SINI!
 # ==========================================
