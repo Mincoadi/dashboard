@@ -7,10 +7,12 @@ from dateutil.relativedelta import relativedelta
 # 1. Konfigurasi Halaman & Koneksi Database SQLite
 st.set_page_config(page_title="Warranty Dashboard", layout="wide")
 
+# Konfigurasi Password Admin (Silakan ganti kata 'admin123' sesuai keinginan Anda)
+PASSWORD_ADMIN = "admin123"
+
 def init_db():
     conn = sqlite3.connect("warranty_data.db")
     cursor = conn.cursor()
-    # Menggunakan tabel versi baru warranties_v2 untuk hitung mundur otomatis
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS warranties_v2 (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -32,14 +34,11 @@ def calculate_remaining_warranty(purchase_date_str, duration_months):
     try:
         purchase_date = datetime.strptime(purchase_date_str, "%Y-%m-%d").date()
         today = datetime.today().date()
-        
-        # Menghitung tanggal kedaluwarsa
         expiry_date = purchase_date + relativedelta(months=duration_months)
         
         if today >= expiry_date:
             return "🔴 Expired", "Expired"
         
-        # Menghitung selisih waktu
         diff = relativedelta(expiry_date, today)
         
         if diff.years > 0:
@@ -65,7 +64,6 @@ def get_data():
     processed_rows = []
     for _, row in df_raw.iterrows():
         status_auto, remaining_auto = calculate_remaining_warranty(row['purchase_date'], int(row['duration_months']))
-        
         processed_rows.append({
             "Nomor Serial": row['serial_number'],
             "Nama Produk": row['product_name'],
@@ -75,7 +73,6 @@ def get_data():
             "Sisa Garansi": remaining_auto,
             "Status": status_auto
         })
-        
     return pd.DataFrame(processed_rows)
 
 def insert_data(sn, produk, pelanggan, tgl_beli, durasi):
@@ -92,81 +89,100 @@ def insert_data(sn, produk, pelanggan, tgl_beli, durasi):
     except sqlite3.IntegrityError:
         return False
 
-# --- TAMPILAN DASHBOARD ---
-st.title("🛡️ Dashboard Garansi Produk")
-st.caption("Sistem secara otomatis memperbarui sisa waktu garansi setiap hari.")
+# --- SISTEM CEK STATUS LOGIN ---
+if 'logged_in' not in st.session_state:
+    st.session_state['logged_in'] = False
+
+# --- TAMPILAN UTAMA DASHBOARD ---
+st.title("🛡️ Portal Garansi Produk Resmi")
+st.caption("Sistem Pelacakan Garansi untuk Pelanggan & Panel Manajemen Admin")
 st.markdown("---")
 
 df_garansi = get_data()
 
-# 2. RINGKASAN DATA (METRICS)
-st.write("### 📈 Ringkasan Garansi")
-col1, col2, col3 = st.columns(3)
-
-with col1:
-    st.metric(label="📦 Total Produk Terdaftar", value=f"{len(df_garansi)} Unit")
-with col2:
-    aktif_count = len(df_garansi[df_garansi["Status"] == "🟢 Aktif"]) if not df_garansi.empty else 0
-    st.metric(label="✅ Garansi Aktif", value=f"{aktif_count} Unit")
-with col3:
-    expired_count = len(df_garansi[df_garansi["Status"] == "🔴 Expired"]) if not df_garansi.empty else 0
-    st.metric(label="⚠️ Garansi Expired", value=f"{expired_count} Unit")
-
-st.markdown("---")
-
-# 3. SIDEBAR: FORMULIR INPUT DATA BARU
-with st.sidebar:
-    st.header("📝 Input Garansi Baru")
-    
-    with st.form("form_input", clear_on_submit=True):
-        input_sn = st.text_input("Nomor Serial:", placeholder="Contoh: SN-2026-001")
-        input_produk = st.text_input("Nama Produk:", placeholder="Contoh: Mobil Mainan")
-        input_pelanggan = st.text_input("Nama Pelanggan:", placeholder="Contoh: Pasep")
-        input_tgl = st.date_input("Tanggal Pembelian:", value=datetime.today().date())
-        input_durasi = st.number_input("Durasi Garansi (Bulan):", min_value=1, max_value=120, value=12)
-        
-        submit_button = st.form_submit_button("Simpan Data")
-        
-        if submit_button:
-            if input_sn and input_produk and input_pelanggan:
-                sukses = insert_data(input_sn.strip(), input_produk.strip(), input_pelanggan.strip(), input_tgl, input_durasi)
-                if sukses:
-                    st.success("🎉 Data berhasil disimpan!")
-                    st.rerun()
-                else:
-                    st.error("❌ Gagal! Nomor Serial sudah terdaftar.")
-            else:
-                st.warning("⚠️ Mohon isi semua kolom yang wajib!")
-
-# 4. PUSAT CEK GARANSI
-st.write("### 🔍 Pusat Cek Garansi")
-cari_sn = st.text_input("Masukkan Nomor Serial Produk untuk Melacak:", placeholder="Ketik nomor serial di sini...")
+# TAMPILAN 1: PUSAT CEK GARANSI (BISA DIAKSES SIAPA SAJA / UMUM)
+st.write("### 🔍 Pusat Cek Status Garansi (Pelanggan)")
+cari_sn = st.text_input("Masukkan Nomor Serial Produk Anda:", placeholder="Ketik nomor serial di sini...")
 
 if cari_sn:
     if not df_garansi.empty:
         hasil = df_garansi[df_garansi["Nomor Serial"].str.lower() == cari_sn.strip().lower()]
         if not hasil.empty:
-            st.success("✨ Data Ditemukan!")
+            st.success("✨ Data Garansi Ditemukan!")
             st.table(hasil)
         else:
-            st.error("❌ Nomor Serial tidak terdaftar di dalam sistem.")
+            st.error("❌ Mohon maaf, Nomor Serial tidak terdaftar di sistem kami.")
     else:
-        st.error("❌ Belum ada data di dalam database.")
+        st.error("❌ Belum ada data garansi terdaftar di dalam sistem.")
 
 st.markdown("---")
 
-# 5. TABEL SEMUA DATA (SISI ADMIN)
-st.write("### 📋 Semua Data Garansi")
-if not df_garansi.empty:
-    st.dataframe(df_garansi, use_container_width=True)
+
+# TAMPILAN 2: PANEL SIDEBAR & MENU ADMIN (TERKUNCI PASSWORD)
+with st.sidebar:
+    st.header("🔐 Area Admin")
     
-    csv_data = df_garansi.to_csv(index=False).encode('utf-8')
-    st.download_button(
-        label="📥 Unduh Semua Data Garansi (CSV/Excel)",
-        data=csv_data,
-        file_name="laporan_garansi_otomatis.csv",
-        mime="text/csv",
-        use_container_width=True
-    )
+    if not st.session_state['logged_in']:
+        # Jika belum login, tampilkan form login
+        st.write("Silakan masuk untuk mengakses fitur input dan laporan.")
+        input_password = st.text_input("Masukkan Password Admin:", type="password")
+        btn_login = st.button("Masuk")
+        
+        if btn_login:
+            if input_password == PASSWORD_ADMIN:
+                st.session_state['logged_in'] = True
+                st.success("🔓 Login berhasil!")
+                st.rerun()
+            else:
+                st.error("❌ Password salah! Akses ditolak.")
+    else:
+        # Jika sudah sukses login, tampilkan Form Input Data Baru
+        st.write("Anda masuk sebagai **Admin**")
+        btn_logout = st.button("Keluar / Logout")
+        if btn_logout:
+            st.session_state['logged_in'] = False
+            st.rerun()
+            
+        st.markdown("---")
+        st.subheader("📝 Input Garansi Baru")
+        
+        with st.form("form_input", clear_on_submit=True):
+            input_sn = st.text_input("Nomor Serial:", placeholder="Contoh: SN-2026-001")
+            input_produk = st.text_input("Nama Produk:", placeholder="Contoh: Mobil Mainan")
+            input_pelanggan = st.text_input("Nama Pelanggan:", placeholder="Contoh: Pasep")
+            input_tgl = st.date_input("Tanggal Pembelian:", value=datetime.today().date())
+            input_durasi = st.number_input("Durasi Garansi (Bulan):", min_value=1, max_value=120, value=12)
+            
+            submit_button = st.form_submit_button("Simpan Data")
+            
+            if submit_button:
+                if input_sn and input_produk and input_pelanggan:
+                    sukses = insert_data(input_sn.strip(), input_produk.strip(), input_pelanggan.strip(), input_tgl, input_durasi)
+                    if sukses:
+                        st.success("🎉 Data berhasil disimpan!")
+                        st.rerun()
+                    else:
+                        st.error("❌ Gagal! Nomor Serial sudah terdaftar.")
+                else:
+                    st.warning("⚠️ Mohon isi semua kolom yang wajib!")
+
+
+# TAMPILAN 3: TABEL DATA ADMIN (HANYA MUNCUL JIKA SUDAH LOGIN)
+if st.session_state['logged_in']:
+    st.write("### 📋 Semua Data Garansi (Sisi Admin)")
+    if not df_garansi.empty:
+        st.dataframe(df_garansi, use_container_width=True)
+        
+        csv_data = df_garansi.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="📥 Unduh Semua Data Garansi (CSV/Excel)",
+            data=csv_data,
+            file_name="laporan_garansi_otomatis.csv",
+            mime="text/csv",
+            use_container_width=True
+        )
+    else:
+        st.info("Database masih kosong. Silakan tambah data melalui formulir di sidebar kiri.")
 else:
-    st.info("Database masih kosong. Silakan tambah data melalui formulir di sebelah kiri (Sidebar).")
+    # Pesan penutup untuk pengunjung yang belum login
+    st.info("ℹ️ Panel data admin dan fitur rekap laporan disembunyikan. Silakan login pada menu sidebar untuk membukanya.")
