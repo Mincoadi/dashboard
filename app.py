@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 st.set_page_config(page_title="Portal Garansi", page_icon="📦", layout="wide")
 
 # ==========================================
-# 1b. KUSTOMISASI WARNA SIDEBAR & CSS HEADER
+# 1b. KUSTOMISASI WARNA SIDEBAR & HEADER RAPAT
 # ==========================================
 st.markdown("""
 <style>
@@ -50,42 +50,26 @@ st.markdown("""
         background-color: #ebf5fb;
     }
 
-    /* ===== HEADER RAPAT TOTAL ===== */
-    /* Hilangkan semua margin/padding di area header */
-    .main-header {
-        margin: 0 !important;
-        padding: 0 !important;
-        display: flex;
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 2px;
+    /* HEADER RAPAT */
+    div[data-testid="column"]:has(img) {
+        padding: 0px !important;
+        margin: 0px !important;
     }
-    .main-header .logo-row {
-        display: flex;
-        gap: 5px;
-        margin-bottom: 0px;
+    .stImage {
+        margin-bottom: -10px !important;
     }
-    .main-header .logo-row img {
-        max-height: 100px;
-        width: auto;
+    /* Hilangkan margin pada judul dan caption */
+    .main-title {
+        margin-top: -15px !important;
+        margin-bottom: 0px !important;
+        padding-top: 0px !important;
     }
-    .main-header h1 {
-        margin: 0 !important;
-        padding: 0 !important;
-        font-size: 2.5rem;
+    .main-caption {
+        margin-top: -10px !important;
+        margin-bottom: 5px !important;
     }
-    .main-header p {
-        margin: 0 !important;
-        padding: 0 !important;
-        font-size: 1rem;
-        color: #666;
-    }
-    /* Hilangkan margin bawaan Streamlit pada elemen header */
-    .stMarkdown {
-        margin: 0 !important;
-        padding: 0 !important;
-    }
-    div[data-testid="stVerticalBlock"] > div:first-child {
+    /* Hilangkan margin pada elemen header pertama */
+    .stMarkdown:first-child {
         margin: 0 !important;
         padding: 0 !important;
     }
@@ -93,7 +77,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. KREDENSIAL ADMIN (HARDCODE)
+# 2. KREDENSIAL ADMIN
 # ==========================================
 USER_ADMIN = "admin"
 PASSWORD_ADMIN = "admin123"
@@ -256,34 +240,31 @@ if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
 
 # ==========================================
-# 8. HEADER RAPAT TOTAL (HTML + CSS)
+# 8. HEADER RAPAT (PAKAI st.image, TANPA BASE64)
 # ==========================================
-# Baca gambar sebagai base64 agar bisa dimasukkan ke HTML
-def get_image_base64(path):
-    try:
-        import base64
-        with open(path, "rb") as f:
-            return base64.b64encode(f.read()).decode()
-    except:
-        return None
+# Baris pertama: dua gambar
+col1, col2 = st.columns([0.3, 0.3])
+with col1:
+    if os.path.exists("images (5).jpg"):
+        st.image("images (5).jpg", width=140)
+    else:
+        st.write("📦")
+with col2:
+    if os.path.exists("images (3).svg"):
+        st.image("images (3).svg", width=140)
+    else:
+        st.write("📦")
 
-img1_base64 = get_image_base64("images (5).jpg")
-img2_base64 = get_image_base64("images (3).svg")
+# Baris kedua: judul dengan CSS inline (lebih rapat)
+st.markdown("""
+    <h1 style="margin-top: -15px; margin-bottom: 0px; padding-top: 0px; font-size: 2.5rem;">
+        Portal Garansi Produk Resmi
+    </h1>
+    <p style="margin-top: -10px; margin-bottom: 5px; font-size: 1rem; color: #666;">
+        Sistem Pelacakan Garansi untuk Pelanggan & Panel Manajemen Admin
+    </p>
+""", unsafe_allow_html=True)
 
-# Buat HTML header dengan gambar inline (base64) agar tidak ada margin sama sekali
-header_html = f"""
-<div class="main-header">
-    <div class="logo-row">
-        {f'<img src="data:image/jpeg;base64,{img1_base64}" alt="Logo 1" style="height:90px;">' if img1_base64 else '📦'}
-        {f'<img src="data:image/svg+xml;base64,{img2_base64}" alt="Logo 2" style="height:90px;">' if img2_base64 else '📦'}
-    </div>
-    <h1>Portal Garansi Produk Resmi</h1>
-    <p>Sistem Pelacakan Garansi untuk Pelanggan & Panel Manajemen Admin</p>
-</div>
-"""
-st.markdown(header_html, unsafe_allow_html=True)
-
-# Garis pemisah
 st.markdown("---")
 
 df_garansi = get_data()
@@ -360,7 +341,7 @@ with st.sidebar:
         st.subheader("🗑️ Hapus Data Garansi")
         with st.form("form_hapus", clear_on_submit=True):
             hapus_sn = st.text_input("Nomor Serial yang Ingin Dihapus:", placeholder="Masukkan nomor serial...")
-            konfirmasi = st.checkbox("Saya yakin ingin menghapus data ini secara permanen!")
+            konfirmasi = st.checkbox("☑️ Saya yakin ingin menghapus data ini secara permanen!")
             submit_hapus = st.form_submit_button("Hapus Permanen")
             if submit_hapus:
                 if not konfirmasi:
