@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import sqlite3
-from datetime import datetime
+from datetime import datetime, date
 from dateutil.relativedelta import relativedelta
 import streamlit.components.v1 as components
 
@@ -17,10 +17,10 @@ USER_ADMIN = "admin"
 PASSWORD_ADMIN = "admin123"
 
 # ==========================================
-# 3. FUNGSI COUNTDOWN (BERBASIS DETIK DARI SERVER)
+# 3. FUNGSI COUNTDOWN (HANYA BULAN & HARI)
 # ==========================================
 def get_countdown_component(seconds_left, uid, height=50):
-    """Membuat komponen HTML/JS countdown dari sisa detik yang diberikan."""
+    """Menampilkan countdown hanya dalam bulan dan hari (tanpa jam/menit/detik)."""
     if seconds_left <= 0:
         return components.html("<span style='color:red; font-weight:bold;'>🔴 Expired</span>", height=30)
     
@@ -36,15 +36,14 @@ def get_countdown_component(seconds_left, uid, height=50):
                 el.innerHTML = '🔴 Expired';
                 return;
             }}
-            const months = Math.floor(remaining / (60 * 60 * 24 * 30));
-            const days = Math.floor((remaining % (60 * 60 * 24 * 30)) / (60 * 60 * 24));
-            const hours = Math.floor((remaining % (60 * 60 * 24)) / (60 * 60));
-            const minutes = Math.floor((remaining % (60 * 60)) / 60);
-            const seconds = Math.floor(remaining % 60);
+            // Hitung bulan dan hari (1 bulan = 30 hari)
+            const totalDays = Math.floor(remaining / (24 * 3600));
+            const months = Math.floor(totalDays / 30);
+            const days = totalDays % 30;
             let text = '';
             if (months > 0) text += months + ' Bln ';
             if (days > 0) text += days + ' Hari ';
-            text += hours + ' Jam ' + minutes + ' Mnt ' + seconds + ' Dtk';
+            if (text === '') text = '0 Hari';
             el.innerHTML = '🟢 ' + text;
             remaining--;
         }}
@@ -56,7 +55,7 @@ def get_countdown_component(seconds_left, uid, height=50):
     return components.html(html_code, height=height)
 
 # ==========================================
-# 4. INISIALISASI DATABASE (PAKAI NAMA TABEL LAMA)
+# 4. INISIALISASI DATABASE
 # ==========================================
 def init_db():
     conn = sqlite3.connect("warranty_data.db")
@@ -76,42 +75,45 @@ def init_db():
     conn.commit()
     conn.close()
 
-init_db()  # Pastikan tabel ada
+init_db()
 
 # ==========================================
-# 5. FUNGSI BANTU HITUNG SISA GARANSI
+# 5. FUNGSI HITUNG SISA (BULAN & HARI)
 # ==========================================
 def calculate_warranty(purchase_datetime_str, duration_months):
     """
-    Mengembalikan tuple: (status_text, sisa_teks, sisa_detik)
+    Mengembalikan tuple: (status_text, sisa_teks_bulan_hari, sisa_detik_total)
     """
     try:
-        purchase_dt = datetime.strptime(purchase_datetime_str, "%Y-%m-%d %H:%M:%S")
-        now = datetime.now()
-        expiry_dt = purchase_dt + relativedelta(months=duration_months)
-        seconds_left = (expiry_dt - now).total_seconds()
+        # Ambil tanggal saja (abaikan jam)
+        purchase_date = datetime.strptime(purchase_datetime_str[:10], "%Y-%m-%d").date()
+        expiry_date = purchase_date + relativedelta(months=duration_months)
+        today = date.today()
         
-        if seconds_left <= 0:
+        if today > expiry_date:
             return "🔴 Expired", "Expired", 0
         
-        total_detik = int(seconds_left)
-        months = total_detik // (30 * 24 * 3600)
-        sisa = total_detik % (30 * 24 * 3600)
-        days = sisa // (24 * 3600)
-        sisa = sisa % (24 * 3600)
-        hours = sisa // 3600
-        sisa = sisa % 3600
-        minutes = sisa // 60
-        seconds = sisa % 60
+        # Hitung selisih hari
+        delta = expiry_date - today
+        total_days = delta.days
+        months = total_days // 30
+        days = total_days % 30
         
         teks = ""
         if months > 0:
             teks += f"{months} Bln "
         if days > 0:
             teks += f"{days} Hari "
-        teks += f"{hours} Jam {minutes} Mnt {seconds} Dtk"
+        if teks == "":
+            teks = "0 Hari"
         
-        return "🟢 Aktif", teks, seconds_left
+        # Hitung total detik sampai expiry (untuk countdown)
+        expiry_datetime = datetime.combine(expiry_date, datetime.min.time())
+        seconds_left = (expiry_datetime - datetime.now()).total_seconds()
+        if seconds_left < 0:
+            seconds_left = 0
+        
+        return "🟢 Aktif", teks.strip(), int(seconds_left)
     except Exception:
         return "🔴 Error", "Data Tidak Valid", 0
 
@@ -140,9 +142,8 @@ def get_data():
             "Pelanggan": row['customer_name'],
             "Waktu Beli": row['purchase_datetime'],
             "Durasi Awal": f"{row['duration_months']} Bulan",
-            "DurasiBulan": row['duration_months'],
             "Sisa Garansi": sisa_teks,
-            "SisaDetik": int(sisa_detik),
+            "SisaDetik": sisa_detik,
             "Status": status_icon,
             "Foto_Base64": row['product_image']
         })
@@ -151,9 +152,10 @@ def get_data():
 def clear_cache():
     st.cache_data.clear()
 
-def insert_data(sn, produk, pelanggan, tgl_beli, jam_beli, durasi):
+def insert_data(sn, produk, pelanggan, tgl_beli, durasi):
     try:
-        datetime_combined = datetime.combine(tgl_beli, jam_beli).strftime("%Y-%m-%d %H:%M:%S")
+        # Set jam ke 00:00:00
+        datetime_combined = datetime.combine(tgl_beli, datetime.min.time()).strftime("%Y-%m-%d %H:%M:%S")
         conn = sqlite3.connect("warranty_data.db")
         c = conn.cursor()
         c.execute("""
@@ -218,7 +220,6 @@ if cari_sn:
                 st.markdown(f"**📦 Produk:** {row['Nama Produk']}  |  **👤 Pelanggan:** {row['Pelanggan']}")
                 st.markdown(f"**Status:** {row['Status']}")
                 st.markdown("**⏳ Sisa Garansi:**")
-                # Tampilkan countdown dengan sisa detik dari server
                 get_countdown_component(row['SisaDetik'], f"cust_{idx}", height=50)
                 st.divider()
         else:
@@ -259,13 +260,12 @@ with st.sidebar:
             input_produk = st.text_input("Nama Produk:", placeholder="Contoh: Mobil Mainan")
             input_pelanggan = st.text_input("Nama Pelanggan:", placeholder="Contoh: Pasep")
             input_tgl = st.date_input("Tanggal Pembelian:", value=datetime.today().date())
-            input_jam = st.time_input("Jam Pembelian:", value=datetime.today().time())
             input_durasi = st.number_input("Durasi Garansi (Bulan):", min_value=1, max_value=120, value=12)
             submit_button = st.form_submit_button("Simpan Data")
             if submit_button:
                 if input_sn and input_produk and input_pelanggan:
                     sukses = insert_data(input_sn.strip(), input_produk.strip(), input_pelanggan.strip(),
-                                         input_tgl, input_jam, input_durasi)
+                                         input_tgl, input_durasi)
                     if sukses:
                         st.success("🎉 Data berhasil disimpan!")
                         st.rerun()
@@ -299,8 +299,10 @@ with st.sidebar:
 if st.session_state['logged_in']:
     st.write("### 📋 Semua Data Garansi (Sisi Admin)")
     if not df_garansi.empty:
-        # Tampilkan tabel (tanpa kolom SisaDetik dan Foto_Base64)
-        df_tampil = df_garansi.drop(columns=["SisaDetik", "Foto_Base64"])
+        # Buat salinan tanpa kolom SisaDetik dan Foto_Base64
+        df_tampil = df_garansi.drop(columns=["SisaDetik", "Foto_Base64"]).copy()
+        # Tambahkan kolom No urut mulai 1
+        df_tampil.insert(0, "No", range(1, len(df_tampil) + 1))
         st.dataframe(df_tampil, use_container_width=True)
         
         csv_data = df_tampil.to_csv(index=False).encode('utf-8')
