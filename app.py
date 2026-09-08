@@ -17,36 +17,40 @@ USER_ADMIN = "admin"
 PASSWORD_ADMIN = "admin123"
 
 # ==========================================
-# 3. FUNGSI COUNTDOWN KOMPONEN (JavaScript)
+# 3. FUNGSI COUNTDOWN (BERBASIS DETIK DARI SERVER)
 # ==========================================
-def get_countdown_component(expiry_dt_str, uid, height=50):
-    """Mengembalikan komponen HTML/JS countdown real-time dengan ID unik."""
-    if not expiry_dt_str:
-        return components.html("<span>❌ Tidak valid</span>", height=30)
+def get_countdown_component(seconds_left, uid, height=50):
+    """
+    Membuat komponen HTML/JS countdown dari sisa detik yang diberikan.
+    seconds_left: integer (bisa negatif jika expired)
+    uid: unique id untuk elemen
+    """
+    if seconds_left <= 0:
+        return components.html("<span style='color:red; font-weight:bold;'>🔴 Expired</span>", height=30)
+    
     html_code = f"""
     <div id="countdown_{uid}" style="font-size:16px; font-weight:bold;"></div>
     <script>
     (function() {{
-        const target = new Date("{expiry_dt_str}").getTime();
+        let remaining = {int(seconds_left)};
         const el = document.getElementById('countdown_{uid}');
         if (!el) return;
         function update() {{
-            const now = new Date().getTime();
-            const diff = target - now;
-            if (diff <= 0) {{
+            if (remaining <= 0) {{
                 el.innerHTML = '🔴 Expired';
                 return;
             }}
-            const months = Math.floor(diff / (1000 * 60 * 60 * 24 * 30));
-            const days = Math.floor((diff % (1000 * 60 * 60 * 24 * 30)) / (1000 * 60 * 60 * 24));
-            const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-            const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+            const months = Math.floor(remaining / (60 * 60 * 24 * 30));
+            const days = Math.floor((remaining % (60 * 60 * 24 * 30)) / (60 * 60 * 24));
+            const hours = Math.floor((remaining % (60 * 60 * 24)) / (60 * 60));
+            const minutes = Math.floor((remaining % (60 * 60)) / 60);
+            const seconds = Math.floor(remaining % 60);
             let text = '';
             if (months > 0) text += months + ' Bln ';
             if (days > 0) text += days + ' Hari ';
             text += hours + ' Jam ' + minutes + ' Mnt ' + seconds + ' Dtk';
             el.innerHTML = '🟢 ' + text;
+            remaining--;
         }}
         update();
         setInterval(update, 1000);
@@ -62,7 +66,7 @@ def init_db():
     conn = sqlite3.connect("warranty_data.db")
     c = conn.cursor()
     c.execute("""
-        CREATE TABLE IF NOT EXISTS warranties_v4 (
+        CREATE TABLE IF NOT EXISTS warranties (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             serial_number TEXT UNIQUE,
             product_name TEXT,
@@ -79,47 +83,60 @@ def init_db():
 init_db()
 
 # ==========================================
-# 5. FUNGSI HITUNG SISA GARANSI (Untuk Tabel Admin)
+# 5. FUNGSI BANTU HITUNG SISA GARANSI
 # ==========================================
-def calculate_precise_warranty(purchase_datetime_str, duration_months):
+def calculate_warranty(purchase_datetime_str, duration_months):
+    """
+    Mengembalikan tuple: (status_text, sisa_teks, sisa_detik)
+    """
     try:
         purchase_dt = datetime.strptime(purchase_datetime_str, "%Y-%m-%d %H:%M:%S")
         now = datetime.now()
         expiry_dt = purchase_dt + relativedelta(months=duration_months)
-        if now >= expiry_dt:
-            return "🔴 Expired", "Expired"
-        time_left = expiry_dt - now
-        days = time_left.days
-        hours, remainder = divmod(time_left.seconds, 3600)
-        minutes, seconds = divmod(remainder, 60)
-        months = days // 30
-        remaining_days = days % 30
+        seconds_left = (expiry_dt - now).total_seconds()
+        
+        if seconds_left <= 0:
+            return "🔴 Expired", "Expired", 0
+        
+        # Konversi detik ke bulan, hari, jam, menit, detik (1 bulan = 30 hari)
+        total_detik = int(seconds_left)
+        months = total_detik // (30 * 24 * 3600)
+        sisa = total_detik % (30 * 24 * 3600)
+        days = sisa // (24 * 3600)
+        sisa = sisa % (24 * 3600)
+        hours = sisa // 3600
+        sisa = sisa % 3600
+        minutes = sisa // 60
+        seconds = sisa % 60
+        
+        teks = ""
         if months > 0:
-            text = f"{months} Bln {remaining_days} Hari, {hours} Jam {minutes} Mnt {seconds} Dtk"
-        elif remaining_days > 0:
-            text = f"{remaining_days} Hari, {hours} Jam {minutes} Mnt {seconds} Dtk"
-        else:
-            text = f"{hours} Jam {minutes} Mnt {seconds} Dtk"
-        return "🟢 Aktif", text
-    except Exception:
-        return "🔴 Error", "Data Tidak Valid"
+            teks += f"{months} Bln "
+        if days > 0:
+            teks += f"{days} Hari "
+        teks += f"{hours} Jam {minutes} Mnt {seconds} Dtk"
+        
+        return "🟢 Aktif", teks, seconds_left
+    except Exception as e:
+        return "🔴 Error", "Data Tidak Valid", 0
 
 # ==========================================
-# 6. FUNGSI DATABASE (DENGAN CACHING)
+# 6. FUNGSI CRUD DATABASE (DENGAN CACHING)
 # ==========================================
 @st.cache_data(ttl=5)
 def get_data():
     conn = sqlite3.connect("warranty_data.db")
     df_raw = pd.read_sql_query(
-        "SELECT serial_number, product_name, customer_name, purchase_datetime, duration_months, status, product_image FROM warranties_v4",
+        "SELECT serial_number, product_name, customer_name, purchase_datetime, duration_months, status, product_image FROM warranties",
         conn
     )
     conn.close()
     if df_raw.empty:
         return pd.DataFrame()
+    
     processed = []
     for _, row in df_raw.iterrows():
-        status_auto, remaining_auto = calculate_precise_warranty(
+        status_icon, sisa_teks, sisa_detik = calculate_warranty(
             row['purchase_datetime'], int(row['duration_months'])
         )
         processed.append({
@@ -129,8 +146,9 @@ def get_data():
             "Waktu Beli": row['purchase_datetime'],
             "Durasi Awal": f"{row['duration_months']} Bulan",
             "DurasiBulan": row['duration_months'],
-            "Sisa Garansi": remaining_auto,
-            "Status": status_auto,
+            "Sisa Garansi": sisa_teks,
+            "SisaDetik": int(sisa_detik),   # untuk countdown
+            "Status": status_icon,
             "Foto_Base64": row['product_image']
         })
     return pd.DataFrame(processed)
@@ -144,7 +162,7 @@ def insert_data(sn, produk, pelanggan, tgl_beli, jam_beli, durasi):
         conn = sqlite3.connect("warranty_data.db")
         c = conn.cursor()
         c.execute("""
-            INSERT INTO warranties_v4
+            INSERT INTO warranties
             (serial_number, product_name, customer_name, purchase_datetime, duration_months, status, product_image)
             VALUES (?, ?, ?, ?, ?, ?, ?)
         """, (sn, produk, pelanggan, datetime_combined, int(durasi), "Aktif", ""))
@@ -158,12 +176,12 @@ def insert_data(sn, produk, pelanggan, tgl_beli, jam_beli, durasi):
 def delete_data(sn):
     conn = sqlite3.connect("warranty_data.db")
     c = conn.cursor()
-    c.execute("SELECT * FROM warranties_v4 WHERE serial_number = ?", (sn,))
+    c.execute("SELECT * FROM warranties WHERE serial_number = ?", (sn,))
     data = c.fetchone()
     if data is None:
         conn.close()
         return False
-    c.execute("DELETE FROM warranties_v4 WHERE serial_number = ?", (sn,))
+    c.execute("DELETE FROM warranties WHERE serial_number = ?", (sn,))
     conn.commit()
     conn.close()
     clear_cache()
@@ -187,9 +205,12 @@ st.title("Portal Garansi Produk Resmi")
 st.caption("Sistem Pelacakan Garansi untuk Pelanggan & Panel Manajemen Admin")
 st.markdown("---")
 
+# Ambil data dari database (dengan cache)
 df_garansi = get_data()
 
-# --- PUSAT CEK GARANSI (PELANGGAN) ---
+# -------------------------------------------------------------------------
+# AREA PELANGGAN: CEK GARANSI
+# -------------------------------------------------------------------------
 st.write("### 🔍 Pusat Cek Status Garansi (Pelanggan)")
 cari_sn = st.text_input("Masukkan Nomor Serial Produk Anda:", placeholder="Ketik nomor serial di sini...")
 
@@ -199,18 +220,12 @@ if cari_sn:
         if not hasil.empty:
             st.success("✨ Data Garansi Ditemukan!")
             for idx, row in hasil.iterrows():
-                purchase_dt = datetime.strptime(row['Waktu Beli'], "%Y-%m-%d %H:%M:%S")
-                durasi_bulan = int(row['DurasiBulan'])
-                expiry_dt = purchase_dt + relativedelta(months=durasi_bulan)
-                expiry_time_str = expiry_dt.isoformat()
-
                 st.markdown(f"**🔹 Nomor Serial:** {row['Nomor Serial']}")
                 st.markdown(f"**📦 Produk:** {row['Nama Produk']}  |  **👤 Pelanggan:** {row['Pelanggan']}")
                 st.markdown(f"**Status:** {row['Status']}")
-                
-                # Tampilkan countdown saja (label opsional)
                 st.markdown("**⏳ Sisa Garansi:**")
-                get_countdown_component(expiry_time_str, idx, height=50)
+                # Tampilkan countdown dengan sisa detik dari server
+                get_countdown_component(row['SisaDetik'], f"cust_{idx}", height=50)
                 st.divider()
         else:
             st.error("❌ Mohon maaf, Nomor Serial tidak terdaftar di sistem kami.")
@@ -219,7 +234,9 @@ if cari_sn:
 
 st.markdown("---")
 
-# --- PANEL SIDEBAR ADMIN ---
+# -------------------------------------------------------------------------
+# SIDEBAR ADMIN
+# -------------------------------------------------------------------------
 with st.sidebar:
     st.header("🔐 Area Admin")
     if not st.session_state['logged_in']:
@@ -240,6 +257,7 @@ with st.sidebar:
         if btn_logout:
             st.session_state['logged_in'] = False
             st.rerun()
+        
         st.markdown("---")
         st.subheader("📝 Input Garansi Baru")
         with st.form("form_input", clear_on_submit=True):
@@ -261,14 +279,17 @@ with st.sidebar:
                         st.error("❌ Gagal! Nomor Serial sudah terdaftar.")
                 else:
                     st.warning("⚠️ Mohon isi semua kolom yang wajib!")
-
+        
         st.markdown("---")
         st.subheader("🗑️ Hapus Data Garansi")
         with st.form("form_hapus", clear_on_submit=True):
             hapus_sn = st.text_input("Nomor Serial yang Ingin Dihapus:", placeholder="Masukkan nomor serial...")
+            konfirmasi = st.checkbox("☑️ Saya yakin ingin menghapus data ini secara permanen!")
             submit_hapus = st.form_submit_button("Hapus Permanen")
             if submit_hapus:
-                if hapus_sn:
+                if not konfirmasi:
+                    st.warning("⚠️ Centang kotak konfirmasi terlebih dahulu!")
+                elif hapus_sn:
                     berhasil_hapus = delete_data(hapus_sn.strip())
                     if berhasil_hapus:
                         st.success(f"🗑️ Data dengan SN '{hapus_sn}' berhasil dihapus!")
@@ -278,12 +299,18 @@ with st.sidebar:
                 else:
                     st.warning("⚠️ Masukkan Nomor Serial terlebih dahulu!")
 
-# --- TABEL DATA ADMIN (HANYA TERLIHAT SAAT LOGIN) ---
+# -------------------------------------------------------------------------
+# AREA ADMIN: TABEL DATA (HANYA JIKA LOGIN)
+# -------------------------------------------------------------------------
 if st.session_state['logged_in']:
     st.write("### 📋 Semua Data Garansi (Sisi Admin)")
     if not df_garansi.empty:
-        st.dataframe(df_garansi.drop(columns=["Foto_Base64"]), use_container_width=True)
-        csv_data = df_garansi.to_csv(index=False).encode('utf-8')
+        # Tampilkan tabel (tanpa kolom SisaDetik dan Foto_Base64)
+        df_tampil = df_garansi.drop(columns=["SisaDetik", "Foto_Base64"])
+        st.dataframe(df_tampil, use_container_width=True)
+        
+        # Tombol download CSV
+        csv_data = df_tampil.to_csv(index=False).encode('utf-8')
         st.download_button(
             label="📥 Unduh Semua Data Garansi (CSV/Excel)",
             data=csv_data,
@@ -296,12 +323,8 @@ if st.session_state['logged_in']:
 else:
     st.info("ℹ️ Panel data admin dan fitur rekap laporan disembunyikan. Silakan login pada menu sidebar untuk membukanya.")
 
-# ==========================================
-# 9. FOOTER
-# ==========================================
+# -------------------------------------------------------------------------
+# FOOTER
+# -------------------------------------------------------------------------
 st.divider()
 st.caption("© 2026 Portal Garansi Resmi. Hak Cipta Dilindungi.")
-
-# ==========================================
-# 10. TIDAK ADA AUTO-REFRESH!
-# ==========================================
