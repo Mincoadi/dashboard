@@ -9,6 +9,50 @@ import streamlit.components.v1 as components
 # 1. KONFIGURASI HALAMAN
 # ==========================================
 st.set_page_config(page_title="Portal Garansi", page_icon="📦", layout="wide")
+# ==========================================
+# KUSTOMISASI WARNA SIDEBAR (CSS)
+# ==========================================
+st.markdown("""
+<style>
+    /* Ganti background sidebar */
+    [data-testid="stSidebar"] {
+        background-color: #d4e6f1;  /* Biru soft */
+    }
+    /* Ganti warna teks di sidebar biar kontras */
+    [data-testid="stSidebar"] * {
+        color: #154360;  /* Biru tua untuk teks */
+    }
+    /* Ganti warna header sidebar */
+    [data-testid="stSidebar"] h1, 
+    [data-testid="stSidebar"] h2, 
+    [data-testid="stSidebar"] h3, 
+    [data-testid="stSidebar"] h4 {
+        color: #0b3d5c;  /* Biru lebih tua untuk judul */
+    }
+    /* Ganti warna tombol di sidebar */
+    [data-testid="stSidebar"] .stButton > button {
+        background-color: #2e86c1;
+        color: white;
+        border: none;
+    }
+    [data-testid="stSidebar"] .stButton > button:hover {
+        background-color: #1a5276;
+        color: white;
+    }
+    /* Ganti warna input text di sidebar */
+    [data-testid="stSidebar"] .stTextInput > div > div > input {
+        background-color: #ffffff;
+        border: 1px solid #a9cce3;
+    }
+    /* Ganti warna form border */
+    [data-testid="stSidebar"] .stForm {
+        border: 1px solid #a9cce3;
+        border-radius: 10px;
+        padding: 10px;
+        background-color: #ebf5fb;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 # ==========================================
 # 2. KREDENSIAL ADMIN (HARDCODE)
