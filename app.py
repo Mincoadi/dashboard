@@ -109,20 +109,17 @@ if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
 
 # --- TAMPILAN UTAMA DASHBOARD ---
-# 1. Menampilkan Foto Logo Kustom (Ganti URL di dalam tanda kutip dengan link foto Anda)
+# Menampilkan Foto Logo Kustom dengan format HTML yang benar
 LINK_FOTO_LOGO = "https://githubusercontent.com"
 
-# Mengatur ukuran foto logo (lebar 150 pixel) dan posisi di sebelah kiri/tengah
 st.markdown(
-    f'<div style="text-align: left;"><img src="{LINK_FOTO_LOGO}" width="150" style="margin-bottom: 10px;"></div>', 
+    f"<div style='text-align: left;'><img src='{LINK_FOTO_LOGO}' width='150' style='margin-bottom: 10px; border-radius: 8px;'></div>", 
     unsafe_allow_html=True
 )
 
-# 2. Judul Utama Website (Emoji tameng 🛡️ dihapus agar bersih)
 st.title("Portal Garansi Produk Resmi")
 st.caption("Sistem Pelacakan Garansi untuk Pelanggan & Panel Manajemen Admin")
 st.markdown("---")
-
 
 df_garansi = get_data()
 
