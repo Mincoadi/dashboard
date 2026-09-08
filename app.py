@@ -119,7 +119,7 @@ if 'logged_in' not in st.session_state:
 
 # --- TAMPILAN UTAMA DASHBOARD ---
 try:
-    st.image("15976.jpg", width=150)
+    st.image("images (5).jpg", width=200)
 except Exception:
     pass
 
