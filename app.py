@@ -229,10 +229,20 @@ if 'logged_in' not in st.session_state:
 # ==========================================
 # 8. TAMPILAN UTAMA
 # ==========================================
-try:
-    st.image("images (5).jpg", width=200)
-except Exception:
-    pass
+# Buat 2 kolom dengan lebar proporsional
+col1, col2 = st.columns([1, 1])  # bisa disesuaikan [1, 2] jika salah satu lebih lebar
+
+with col1:
+    try:
+        st.image("images (5).jpg", width=200)
+    except Exception:
+        pass
+
+with col2:
+    try:
+        st.image("images (3).jpg", width=200)  # Ganti dengan nama file gambarmu
+    except Exception:
+        pass
 
 st.title("Portal Garansi Produk Resmi")
 st.caption("Sistem Pelacakan Garansi untuk Pelanggan & Panel Manajemen Admin")
