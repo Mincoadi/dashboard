@@ -348,9 +348,40 @@ if st.session_state['logged_in']:
             use_container_width=True
         )
 
-        # ============================
-        # GRAFIK STATISTIK (POPOVER)
-        # ============================
+        # ==========================================
+        # POPOVER 1: MONITORING UNIT WARRANTY
+        # ==========================================
+        with st.popover("📋 Monitoring Unit Warranty", use_container_width=True):
+            st.write("### 📋 Monitoring Unit Warranty")
+            st.caption("Jumlah unit garansi per pelanggan")
+            
+            # Hitung jumlah per pelanggan
+            customer_counts = df_garansi['Pelanggan'].value_counts().reset_index()
+            customer_counts.columns = ['Pelanggan', 'Jumlah Unit']
+            
+            # Tampilkan tabel
+            st.dataframe(customer_counts, use_container_width=True, hide_index=True)
+            
+            # Tampilkan bar chart horizontal
+            fig, ax = plt.subplots(figsize=(6, 3))
+            bars = ax.barh(customer_counts['Pelanggan'], customer_counts['Jumlah Unit'], color='#2e86c1')
+            ax.set_xlabel('Jumlah Unit')
+            ax.set_ylabel('Pelanggan')
+            ax.set_title('Jumlah Unit Garansi per Pelanggan')
+            
+            # Tambahkan angka di ujung bar
+            for bar in bars:
+                width = bar.get_width()
+                ax.text(width + 0.1, bar.get_y() + bar.get_height()/2, f'{int(width)}', 
+                        va='center', ha='left', fontweight='bold', fontsize=10)
+            
+            plt.tight_layout()
+            st.pyplot(fig)
+        # ==========================================
+
+        # ==========================================
+        # POPOVER 2: STATISTIK GARANSI
+        # ==========================================
         with st.popover("📊 Lihat Statistik Garansi", use_container_width=True):
             st.write("### 📊 Statistik Garansi")
             status_counts = df_garansi['Status'].value_counts()
@@ -381,7 +412,7 @@ if st.session_state['logged_in']:
                 autotext.set_fontweight('bold')
             ax.axis('equal')
             st.pyplot(fig)
-        # ============================
+        # ==========================================
 
     else:
         st.info("Database masih kosong. Silakan tambah data melalui formulir di sidebar kiri.")
