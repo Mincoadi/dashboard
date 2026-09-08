@@ -357,6 +357,46 @@ if st.session_state['logged_in']:
             mime="text/csv",
             use_container_width=True
         )
+            # ==========================================
+    # GRAFIK STATISTIK GARANSI (di area admin)
+    # ==========================================
+    if not df_garansi.empty:
+        st.write("### 📊 Statistik Garansi")
+        
+        # Hitung jumlah status
+        status_counts = df_garansi['Status'].value_counts()
+        aktif = status_counts.get('🟢 Aktif', 0)
+        expired = status_counts.get('🔴 Expired', 0)
+        
+        # Tampilkan metrik (total, aktif, expired) dalam 3 kolom
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("📦 Total Data", len(df_garansi))
+        with col2:
+            st.metric("🟢 Aktif", aktif)
+        with col3:
+            st.metric("🔴 Expired", expired)
+        
+        # Buat pie chart
+        import matplotlib.pyplot as plt
+        fig, ax = plt.subplots(figsize=(6, 4))
+        colors = ['#2ecc71' if x == '🟢 Aktif' else '#e74c3c' for x in status_counts.index]
+        wedges, texts, autotexts = ax.pie(
+            status_counts, 
+            labels=status_counts.index, 
+            autopct='%1.1f%%', 
+            colors=colors, 
+            startangle=90,
+            textprops={'fontsize': 12}
+        )
+        # Perbaiki warna teks persentase agar terbaca
+        for autotext in autotexts:
+            autotext.set_color('white')
+            autotext.set_fontweight('bold')
+        ax.axis('equal')
+        st.pyplot(fig)
+    else:
+        st.info("Belum ada data untuk ditampilkan.")
     else:
         st.info("Database masih kosong. Silakan tambah data melalui formulir di sidebar kiri.")
 else:
