@@ -109,15 +109,41 @@ if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
 
 # --- TAMPILAN UTAMA DASHBOARD ---
-# Memanggil file gambar yang sudah ada di dalam folder GitHub Anda secara lokal
-NAMA_FILE_LOGO = "hv.avif"
+# 1. Mengambil data foto lokal dan mengubahnya agar bisa dibaca sistem sebagai background
+import base64
+
+def get_base64_of_bin_file(bin_file):
+    with open(bin_file, 'rb') as f:
+        data = f.read()
+    return base64.b64encode(data).decode()
 
 try:
-    # Menampilkan foto logo dari folder dengan lebar 150 pixel
-    st.image(NAMA_FILE_LOGO, width=150)
+    bin_str = get_base64_of_bin_file('15976.jpg')
+    
+    # Menyisipkan CSS untuk mengubah background utama website
+    page_bg_img = f'''
+    <style>
+    .stApp {{
+        background-image: url("data:image/jpeg;base64,{bin_str}");
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+        background-attachment: fixed;
+    }}
+    
+    /* Membuat latar belakang teks agak buram/semi-transparan agar tulisan tetap mudah dibaca */
+    .stMarkdown, .stTable, .stDataFrame, div[data-testid="stMetricValue"] {{
+        background-color: rgba(255, 255, 255, 0.85);
+        padding: 10px;
+        border-radius: 8px;
+    }}
+    </style>
+    '''
+    st.markdown(page_bg_img, unsafe_allow_html=True)
 except Exception:
     pass
 
+# 2. Judul Utama Website (Tanpa st.image lagi karena sudah jadi background)
 st.title("Portal Garansi Produk Resmi")
 st.caption("Sistem Pelacakan Garansi untuk Pelanggan & Panel Manajemen Admin")
 st.markdown("---")
