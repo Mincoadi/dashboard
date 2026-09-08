@@ -314,7 +314,7 @@ with st.sidebar:
         st.subheader("🗑️ Hapus Data Garansi")
         with st.form("form_hapus", clear_on_submit=True):
             hapus_sn = st.text_input("Nomor Serial yang Ingin Dihapus:", placeholder="Masukkan nomor serial...")
-            konfirmasi = st.checkbox("☑️ Saya yakin ingin menghapus data ini secara permanen!")
+            konfirmasi = st.checkbox("Saya yakin ingin menghapus data ini secara permanen!")
             submit_hapus = st.form_submit_button("Hapus Permanen")
             if submit_hapus:
                 if not konfirmasi:
