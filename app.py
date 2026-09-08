@@ -109,11 +109,14 @@ if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
 
 # --- TAMPILAN UTAMA DASHBOARD ---
-# Menampilkan Foto Logo menggunakan fungsi resmi Streamlit
-LINK_FOTO_LOGO = "https://githubusercontent.com"
+# Memanggil file gambar yang sudah ada di dalam folder GitHub Anda secara lokal
+NAMA_FILE_LOGO = "15976.jpg"
 
-# Memanggil gambar secara aman, lebar diatur 150 pixel
-st.image(LINK_FOTO_LOGO, width=150)
+try:
+    # Menampilkan foto logo dari folder dengan lebar 150 pixel
+    st.image(NAMA_FILE_LOGO, width=150)
+except Exception:
+    pass
 
 st.title("Portal Garansi Produk Resmi")
 st.caption("Sistem Pelacakan Garansi untuk Pelanggan & Panel Manajemen Admin")
