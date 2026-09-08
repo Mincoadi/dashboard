@@ -51,30 +51,22 @@ st.markdown("""
     }
 
     /* HEADER: RAPATKAN GAMBAR & JUDUL */
-    /* Hilangkan padding kolom gambar */
     div[data-testid="column"]:has(img) {
         padding: 0px !important;
         margin: 0px !important;
     }
-    /* Kurangi margin bawah pada baris gambar */
     .stImage {
-        margin-bottom: -15px !important;
+        margin-bottom: -10px !important;
     }
-    /* Kurangi margin atas judul */
-    .stTitle {
-        margin-top: -10px !important;
+    /* Hilangkan margin default pada judul dan caption */
+    .header-title {
+        margin-top: -15px !important;
+        margin-bottom: 0px !important;
         padding-top: 0px !important;
     }
-    /* Kurangi margin atas caption */
-    .stCaption {
-        margin-top: -15px !important;
-    }
-    /* Atur jarak antar gambar dengan flex */
-    .header-gambar {
-        display: flex;
-        align-items: center;
-        gap: 5px;
-        margin-bottom: 0px;
+    .header-caption {
+        margin-top: -10px !important;
+        margin-bottom: 5px !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -149,11 +141,7 @@ init_db()
 # 5. FUNGSI HITUNG SISA (BULAN & HARI)
 # ==========================================
 def calculate_warranty(purchase_datetime_str, duration_months):
-    """
-    Mengembalikan tuple: (status_text, sisa_teks_bulan_hari, sisa_detik_total)
-    """
     try:
-        # Ambil tanggal saja (abaikan jam)
         purchase_date = datetime.strptime(purchase_datetime_str[:10], "%Y-%m-%d").date()
         expiry_date = purchase_date + relativedelta(months=duration_months)
         today = date.today()
@@ -256,26 +244,31 @@ if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
 
 # ==========================================
-# 8. TAMPILAN UTAMA (HEADER RAPAT)
+# 8. TAMPILAN UTAMA (HEADER SANGAT RAPAT)
 # ==========================================
-# Baris pertama: dua gambar bersebelahan dengan kolom sempit
+# Baris pertama: dua gambar bersebelahan
 col1, col2 = st.columns([0.3, 0.3])
-
 with col1:
     if os.path.exists("images (5).jpg"):
         st.image("images (5).jpg", width=140)
     else:
         st.write("📦")
-
 with col2:
     if os.path.exists("images (3).svg"):
         st.image("images (3).svg", width=140)
     else:
         st.write("📦")
 
-# Baris kedua: judul dan caption (dengan jarak yang lebih rapat)
-st.title("Portal Garansi Produk Resmi")
-st.caption("Sistem Pelacakan Garansi untuk Pelanggan & Panel Manajemen Admin")
+# Baris kedua: judul dan caption dengan CSS inline (tanpa margin berlebih)
+st.markdown("""
+    <h1 style="margin-top: -15px; margin-bottom: 0px; padding-top: 0px; font-size: 2.5rem;">
+        Portal Garansi Produk Resmi
+    </h1>
+    <p style="margin-top: -10px; margin-bottom: 5px; font-size: 1rem; color: #666;">
+        Sistem Pelacakan Garansi untuk Pelanggan & Panel Manajemen Admin
+    </p>
+""", unsafe_allow_html=True)
+
 st.markdown("---")
 
 df_garansi = get_data()
