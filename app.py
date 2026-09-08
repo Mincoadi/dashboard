@@ -330,7 +330,7 @@ with st.sidebar:
                     st.warning("⚠️ Masukkan Nomor Serial terlebih dahulu!")
 
 # -------------------------------------------------------------------------
-# AREA ADMIN: TABEL DATA & GRAFIK (HANYA JIKA LOGIN)
+# AREA ADMIN: TABEL DATA & GRAFIK (POPOVER)
 # -------------------------------------------------------------------------
 if st.session_state['logged_in']:
     st.write("### 📋 Semua Data Garansi (Sisi Admin)")
@@ -349,37 +349,38 @@ if st.session_state['logged_in']:
         )
 
         # ============================
-        # GRAFIK STATISTIK
+        # GRAFIK STATISTIK (POPOVER)
         # ============================
-        st.write("### 📊 Statistik Garansi")
-        status_counts = df_garansi['Status'].value_counts()
-        aktif = status_counts.get('🟢 Aktif', 0)
-        expired = status_counts.get('🔴 Expired', 0)
+        with st.popover("📊 Lihat Statistik Garansi", use_container_width=True):
+            st.write("### 📊 Statistik Garansi")
+            status_counts = df_garansi['Status'].value_counts()
+            aktif = status_counts.get('🟢 Aktif', 0)
+            expired = status_counts.get('🔴 Expired', 0)
 
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("📦 Total Data", len(df_garansi))
-        with col2:
-            st.metric("🟢 Aktif", aktif)
-        with col3:
-            st.metric("🔴 Expired", expired)
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("📦 Total Data", len(df_garansi))
+            with col2:
+                st.metric("🟢 Aktif", aktif)
+            with col3:
+                st.metric("🔴 Expired", expired)
 
-        # Pie chart
-        fig, ax = plt.subplots(figsize=(6, 4))
-        colors = ['#2ecc71' if x == '🟢 Aktif' else '#e74c3c' for x in status_counts.index]
-        wedges, texts, autotexts = ax.pie(
-            status_counts,
-            labels=status_counts.index,
-            autopct='%1.1f%%',
-            colors=colors,
-            startangle=90,
-            textprops={'fontsize': 12}
-        )
-        for autotext in autotexts:
-            autotext.set_color('white')
-            autotext.set_fontweight('bold')
-        ax.axis('equal')
-        st.pyplot(fig)
+            # Pie chart
+            fig, ax = plt.subplots(figsize=(6, 4))
+            colors = ['#2ecc71' if x == '🟢 Aktif' else '#e74c3c' for x in status_counts.index]
+            wedges, texts, autotexts = ax.pie(
+                status_counts,
+                labels=status_counts.index,
+                autopct='%1.1f%%',
+                colors=colors,
+                startangle=90,
+                textprops={'fontsize': 12}
+            )
+            for autotext in autotexts:
+                autotext.set_color('white')
+                autotext.set_fontweight('bold')
+            ax.axis('equal')
+            st.pyplot(fig)
         # ============================
 
     else:
