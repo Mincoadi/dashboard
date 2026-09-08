@@ -13,10 +13,11 @@ import matplotlib.pyplot as plt
 st.set_page_config(page_title="Portal Garansi", page_icon="📦", layout="wide")
 
 # ==========================================
-# 1b. KUSTOMISASI WARNA SIDEBAR (CSS)
+# 1b. KUSTOMISASI WARNA SIDEBAR & TATA LETAK
 # ==========================================
 st.markdown("""
 <style>
+    /* SIDEBAR */
     [data-testid="stSidebar"] {
         background-color: #d4e6f1;
     }
@@ -49,22 +50,31 @@ st.markdown("""
         background-color: #ebf5fb;
     }
 
-    /* ===== PERBAIKAN: HEADER GAMBAR RAPAT ===== */
-    /* Kurangi padding antar kolom pada baris pertama */
+    /* HEADER: RAPATKAN GAMBAR & JUDUL */
+    /* Hilangkan padding kolom gambar */
     div[data-testid="column"]:has(img) {
         padding: 0px !important;
         margin: 0px !important;
     }
-    /* Buat container gambar menjadi flex agar rapat */
+    /* Kurangi margin bawah pada baris gambar */
+    .stImage {
+        margin-bottom: -15px !important;
+    }
+    /* Kurangi margin atas judul */
+    .stTitle {
+        margin-top: -10px !important;
+        padding-top: 0px !important;
+    }
+    /* Kurangi margin atas caption */
+    .stCaption {
+        margin-top: -15px !important;
+    }
+    /* Atur jarak antar gambar dengan flex */
     .header-gambar {
         display: flex;
         align-items: center;
-        gap: 5px; /* jarak antar gambar */
-        margin-bottom: 5px;
-    }
-    .header-gambar img {
-        max-width: 140px;
-        height: auto;
+        gap: 5px;
+        margin-bottom: 0px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -246,10 +256,10 @@ if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
 
 # ==========================================
-# 8. TAMPILAN UTAMA (HEADER: GAMBAR RAPAT)
+# 8. TAMPILAN UTAMA (HEADER RAPAT)
 # ==========================================
-# Ganti kolom dengan rasio yang lebih kecil agar gambar rapat
-col1, col2 = st.columns([0.3, 0.3])  # lebih sempit agar dekat
+# Baris pertama: dua gambar bersebelahan dengan kolom sempit
+col1, col2 = st.columns([0.3, 0.3])
 
 with col1:
     if os.path.exists("images (5).jpg"):
@@ -263,7 +273,7 @@ with col2:
     else:
         st.write("📦")
 
-# Baris kedua: judul dan caption (di bawah gambar)
+# Baris kedua: judul dan caption (dengan jarak yang lebih rapat)
 st.title("Portal Garansi Produk Resmi")
 st.caption("Sistem Pelacakan Garansi untuk Pelanggan & Panel Manajemen Admin")
 st.markdown("---")
