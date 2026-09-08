@@ -1,58 +1,106 @@
 import streamlit as st
 import pandas as pd
 import sqlite3
+from datetime import datetime
+from dateutil.relativedelta import relativedelta
 
 # 1. Konfigurasi Halaman & Koneksi Database SQLite
 st.set_page_config(page_title="Warranty Dashboard", layout="wide")
 
-# Fungsi untuk menghubungkan ke database file (otomatis dibuat jika belum ada)
 def init_db():
     conn = sqlite3.connect("warranty_data.db")
     cursor = conn.cursor()
-    # Membuat tabel jika belum ada di database
+    # Menggunakan purchase_date dan duration_months untuk perhitungan otomatis
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS warranties (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             serial_number TEXT UNIQUE,
             product_name TEXT,
             customer_name TEXT,
-            duration TEXT,
+            purchase_date TEXT,
+            duration_months INTEGER,
             status TEXT
         )
     """)
     conn.commit()
     conn.close()
 
-# Jalankan inisialisasi database
 init_db()
+
+# --- FUNGSI HITUNG MUNDUR GARANSI ---
+def calculate_remaining_warranty(purchase_date_str, duration_months):
+    try:
+        # Mengubah teks tanggal dari database menjadi objek tanggal asli
+        purchase_date = datetime.strptime(purchase_date_str, "%Y-%m-%d").date()
+        today = datetime.today().date()
+        
+        # Menghitung tanggal kedaluwarsa (Tanggal beli + durasi bulan)
+        expiry_date = purchase_date + relativedelta(months=duration_months)
+        
+        if today >= expiry_date:
+            return "🔴 Expired", "Expired"
+        
+        # Menghitung selisih waktu dari hari ini ke tanggal expired
+        diff = relativedelta(expiry_date, today)
+        
+        # Format tulisan sisa waktu
+        if diff.years > 0:
+            remaining_text = f"{diff.years} Tahun {diff.months} Bulan"
+        elif diff.months > 0:
+            remaining_text = f"{diff.months} Bulan {diff.days} Hari"
+        else:
+            remaining_text = f"{diff.days} Hari"
+            
+        return "🟢 Aktif", remaining_text
+    except Exception as e:
+        return "🔴 Error", "Data Tidak Valid"
 
 # --- FUNGSI AMBIL & SIMPAN DATA ---
 def get_data():
     conn = sqlite3.connect("warranty_data.db")
-    df = pd.read_sql_query("SELECT serial_number AS 'Nomor Serial', product_name AS 'Nama Produk', customer_name AS 'Pelanggan', duration AS 'Sisa Garansi', status AS 'Status' FROM warranties", conn)
+    # Ambil data mentah dari database
+    df_raw = pd.read_sql_query("SELECT serial_number, product_name, customer_name, purchase_date, duration_months, status FROM warranties", conn)
     conn.close()
-    return df
+    
+    if df_raw.empty:
+        return pd.DataFrame()
+        
+    # Proses hitung mundur otomatis untuk setiap baris data
+    processed_rows = []
+    for _, row in df_raw.iterrows():
+        status_auto, remaining_auto = calculate_remaining_warranty(row['purchase_date'], int(row['duration_months']))
+        
+        processed_rows.append({
+            "Nomor Serial": row['serial_number'],
+            "Nama Produk": row['product_name'],
+            "Pelanggan": row['customer_name'],
+            "Tanggal Beli": row['purchase_date'],
+            "Durasi Awal": f"{row['duration_months']} Bulan",
+            "Sisa Garansi": remaining_auto,
+            "Status": status_auto
+        })
+        
+    return pd.DataFrame(processed_rows)
 
-def insert_data(sn, produk, pelanggan, sisa, status):
+def insert_data(sn, produk, pelanggan, tgl_beli, durasi):
     try:
         conn = sqlite3.connect("warranty_data.db")
         cursor = conn.cursor()
         cursor.execute("""
-            INSERT INTO warranties (serial_number, product_name, customer_name, duration, status)
-            VALUES (?, ?, ?, ?, ?)
-        """, (sn, produk, pelanggan, sisa, status))
+            INSERT INTO warranties (serial_number, product_name, customer_name, purchase_date, duration_months, status)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (sn, produk, pelanggan, str(tgl_beli), int(durasi), "Aktif"))
         conn.commit()
         conn.close()
         return True
     except sqlite3.IntegrityError:
-        return False # Jika nomor serial sudah ada (karena bersifat unik)
+        return False
 
 # --- TAMPILAN DASHBOARD ---
-st.title("🛡️ Dashboard Garansi Produk")
-st.caption("Sistem Manajemen & Pelacakan Status Garansi Produk (Versi Database)")
+st.title("🛡️ Dashboard Garansi Produk (Hitung Mundur Otomatis)")
+st.caption("Sistem secara otomatis memperbarui sisa waktu garansi setiap hari.")
 st.markdown("---")
 
-# Mengambil data terbaru dari database SQLite
 df_garansi = get_data()
 
 # 2. RINGKASAN DATA (METRICS)
@@ -62,44 +110,42 @@ col1, col2, col3 = st.columns(3)
 with col1:
     st.metric(label="📦 Total Produk Terdaftar", value=f"{len(df_garansi)} Unit")
 with col2:
-    # Menghitung jumlah status aktif secara dinamis
     aktif_count = len(df_garansi[df_garansi["Status"] == "🟢 Aktif"]) if not df_garansi.empty else 0
     st.metric(label="✅ Garansi Aktif", value=f"{aktif_count} Unit")
 with col3:
-    # Menghitung selain status aktif
-    perhatian_count = len(df_garansi[df_garansi["Status"] != "🟢 Aktif"]) if not df_garansi.empty else 0
-    st.metric(label="⚠️ Perlu Perhatian", value=f"{perhatian_count} Unit")
+    expired_count = len(df_garansi[df_garansi["Status"] == "🔴 Expired"]) if not df_garansi.empty else 0
+    st.metric(label="⚠️ Garansi Expired", value=f"{expired_count} Unit")
 
 st.markdown("---")
 
-# 3. SIDEBAR: FORMULIR INPUT DATA (KHUSUS ADMIN)
+# 3. SIDEBAR: FORMULIR INPUT DATA BARU
 with st.sidebar:
     st.header("📝 Input Garansi Baru")
-    st.write("Gunakan formulir ini untuk menambah data ke database.")
     
-    # Komponen Formulir
     with st.form("form_input", clear_on_submit=True):
         input_sn = st.text_input("Nomor Serial:", placeholder="Contoh: SN-2026-001")
-        input_produk = st.text_input("Nama Produk:", placeholder="Contoh: Asus ROG")
-        input_pelanggan = st.text_input("Nama Pelanggan:", placeholder="Contoh: Budi")
-        input_sisa = st.text_input("Sisa Garansi:", placeholder="Contoh: 12 Bulan")
-        input_status = st.selectbox("Status Garansi:", ["🟢 Aktif", "🔴 Tidak Aktif", "🟡 Klaim Proses"])
+        input_produk = st.text_input("Nama Produk:", placeholder="Contoh: Mobil Mainan")
+        input_pelanggan = st.text_input("Nama Pelanggan:", placeholder="Contoh: Pasep")
+        
+        # Fitur Baru: Kalender untuk memilih tanggal pembelian
+        input_tgl = st.date_input("Tanggal Pembelian:", value=datetime.today().date())
+        # Fitur Baru: Pilihan angka durasi bulan
+        input_durasi = st.number_input("Durasi Garansi (Bulan):", min_value=1, max_value=120, value=12)
         
         submit_button = st.form_submit_button("Simpan Data")
         
         if submit_button:
             if input_sn and input_produk and input_pelanggan:
-                sukses = insert_data(input_sn.strip(), input_produk.strip(), input_pelanggan.strip(), input_sisa.strip(), input_status)
+                sukses = insert_data(input_sn.strip(), input_produk.strip(), input_pelanggan.strip(), input_tgl, input_durasi)
                 if sukses:
                     st.success("🎉 Data berhasil disimpan!")
-                    # Memicu pembaruan halaman agar data langsung muncul di tabel bawah
                     st.rerun()
                 else:
                     st.error("❌ Gagal! Nomor Serial sudah terdaftar.")
             else:
                 st.warning("⚠️ Mohon isi semua kolom yang wajib!")
 
-# 4. PUSAT CEK GARANSI (UNTUK KONSUMEN)
+# 4. PUSAT CEK GARANSI
 st.write("### 🔍 Pusat Cek Garansi")
 cari_sn = st.text_input("Masukkan Nomor Serial Produk untuk Melacak:", placeholder="Ketik nomor serial di sini...")
 
@@ -121,17 +167,13 @@ st.write("### 📋 Semua Data Garansi (Sisi Admin)")
 if not df_garansi.empty:
     st.dataframe(df_garansi, use_container_width=True)
     
-    # --- FITUR TERBARU: TOMBOL UNDUH EXCEL/CSV BESAR ---
-    # Mengubah data tabel menjadi format teks CSV
     csv_data = df_garansi.to_csv(index=False).encode('utf-8')
-    
-    # Menampilkan tombol unduh besar tepat di bawah tabel
     st.download_button(
         label="📥 Unduh Semua Data Garansi (CSV/Excel)",
         data=csv_data,
-        file_name="laporan_garansi_produk.csv",
+        file_name="laporan_garansi_otomatis.csv",
         mime="text/csv",
-        use_container_width=True # Membuat tombol melebar penuh agar mudah diklik
+        use_container_width=True
     )
 else:
     st.info("Database masih kosong. Silakan tambah data melalui formulir di sebelah kiri (Sidebar).")
