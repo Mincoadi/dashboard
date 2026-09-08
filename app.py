@@ -93,7 +93,7 @@ def insert_data(sn, produk, pelanggan, tgl_beli, durasi):
         return False
 
 # --- TAMPILAN DASHBOARD ---
-st.title("🛡️ Dashboard Garansi Produk (Hitung Mundur Otomatis)")
+st.title("🛡️ Dashboard Garansi Produk")
 st.caption("Sistem secara otomatis memperbarui sisa waktu garansi setiap hari.")
 st.markdown("---")
 
@@ -156,7 +156,7 @@ if cari_sn:
 st.markdown("---")
 
 # 5. TABEL SEMUA DATA (SISI ADMIN)
-st.write("### 📋 Semua Data Garansi (Sisi Admin)")
+st.write("### 📋 Semua Data Garansi")
 if not df_garansi.empty:
     st.dataframe(df_garansi, use_container_width=True)
     
