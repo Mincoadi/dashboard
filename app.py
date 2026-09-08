@@ -120,5 +120,18 @@ st.markdown("---")
 st.write("### 📋 Semua Data Garansi (Sisi Admin)")
 if not df_garansi.empty:
     st.dataframe(df_garansi, use_container_width=True)
+    
+    # --- FITUR TERBARU: TOMBOL UNDUH EXCEL/CSV BESAR ---
+    # Mengubah data tabel menjadi format teks CSV
+    csv_data = df_garansi.to_csv(index=False).encode('utf-8')
+    
+    # Menampilkan tombol unduh besar tepat di bawah tabel
+    st.download_button(
+        label="📥 Unduh Semua Data Garansi (CSV/Excel)",
+        data=csv_data,
+        file_name="laporan_garansi_produk.csv",
+        mime="text/csv",
+        use_container_width=True # Membuat tombol melebar penuh agar mudah diklik
+    )
 else:
     st.info("Database masih kosong. Silakan tambah data melalui formulir di sebelah kiri (Sidebar).")
