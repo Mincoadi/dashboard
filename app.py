@@ -1,29 +1,30 @@
 import streamlit as st
 import pandas as pd
 import sqlite3
-import matplotlib.pyplot as plt  # Fitur baru untuk membuat grafik
+import time  # Fitur baru untuk jeda waktu otomatis
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 
 # 1. Konfigurasi Halaman & Koneksi Database SQLite
-st.set_page_config(page_title="Warranty Dashboard", layout="wide")
+st.set_page_config(page_title="Portal Garansi", page_icon="📦", layout="wide")
 
-# --- KONFIGURASI KREDENSIAL ADMIN ---
 USER_ADMIN = "admin"
 PASSWORD_ADMIN = "admin123"
 
 def init_db():
     conn = sqlite3.connect("warranty_data.db")
     cursor = conn.cursor()
+    # Menggunakan DATETIME (bukan TEXT biasa) agar mencatat jam menit saat dibeli
     cursor.execute("""
-        CREATE TABLE IF NOT EXISTS warranties_v2 (
+        CREATE TABLE IF NOT EXISTS warranties_v4 (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             serial_number TEXT UNIQUE,
             product_name TEXT,
             customer_name TEXT,
-            purchase_date TEXT,
+            purchase_datetime TEXT,
             duration_months INTEGER,
-            status TEXT
+            status TEXT,
+            product_image TEXT
         )
     """)
     conn.commit()
@@ -31,33 +32,47 @@ def init_db():
 
 init_db()
 
-# --- FUNGSI HITUNG MUNDUR GARANSI ---
-def calculate_remaining_warranty(purchase_date_str, duration_months):
+# --- FUNGSI HITUNG MUNDUR SUPER DETAIL ---
+def calculate_precise_warranty(purchase_datetime_str, duration_months):
     try:
-        purchase_date = datetime.strptime(purchase_date_str, "%Y-%m-%d").date()
-        today = datetime.today().date()
-        expiry_date = purchase_date + relativedelta(months=duration_months)
+        # Mengubah teks menjadi format waktu lengkap (Tahun-Bulan-Hari Jam:Menit:Detik)
+        purchase_dt = datetime.strptime(purchase_datetime_str, "%Y-%m-%d %H:%M:%S")
+        now = datetime.now()
         
-        if today >= expiry_date:
+        # Menghitung waktu pasti kapan garansi habis
+        expiry_dt = purchase_dt + relativedelta(months=duration_months)
+        
+        if now >= expiry_dt:
             return "🔴 Expired", "Expired"
         
-        diff = relativedelta(expiry_date, today)
+        # Menghitung selisih total waktu tersisa
+        time_left = expiry_dt - now
         
-        if diff.years > 0:
-            remaining_text = f"{diff.years} Tahun {diff.months} Bulan"
-        elif diff.months > 0:
-            remaining_text = f"{diff.months} Bulan {diff.days} Hari"
+        # Menghitung sisa hari, jam, menit, dan detik secara presisi
+        days = time_left.days
+        hours, remainder = divmod(time_left.seconds, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        
+        # Menghitung sisa bulan dari sisa hari
+        months = days // 30
+        remaining_days = days % 30
+        
+        # Menyusun teks tampilan detail
+        if months > 0:
+            text = f"{months} Bln {remaining_days} Hari, {hours} Jam {minutes} Mnt {seconds} Dtk"
+        elif remaining_days > 0:
+            text = f"{remaining_days} Hari, {hours} Jam {minutes} Mnt {seconds} Dtk"
         else:
-            remaining_text = f"{diff.days} Hari"
+            text = f"{hours} Jam {minutes} Mnt {seconds} Dtk"
             
-        return "🟢 Aktif", remaining_text
-    except Exception as e:
+        return "🟢 Aktif", text
+    except Exception:
         return "🔴 Error", "Data Tidak Valid"
 
 # --- FUNGSI AMBIL, SIMPAN, & HAPUS DATA ---
 def get_data():
     conn = sqlite3.connect("warranty_data.db")
-    df_raw = pd.read_sql_query("SELECT serial_number, product_name, customer_name, purchase_date, duration_months, status FROM warranties_v2", conn)
+    df_raw = pd.read_sql_query("SELECT serial_number, product_name, customer_name, purchase_datetime, duration_months, status, product_image FROM warranties_v4", conn)
     conn.close()
     
     if df_raw.empty:
@@ -65,26 +80,30 @@ def get_data():
         
     processed_rows = []
     for _, row in df_raw.iterrows():
-        status_auto, remaining_auto = calculate_remaining_warranty(row['purchase_date'], int(row['duration_months']))
+        status_auto, remaining_auto = calculate_precise_warranty(row['purchase_datetime'], int(row['duration_months']))
         processed_rows.append({
             "Nomor Serial": row['serial_number'],
             "Nama Produk": row['product_name'],
             "Pelanggan": row['customer_name'],
-            "Tanggal Beli": row['purchase_date'],
+            "Waktu Beli": row['purchase_datetime'],
             "Durasi Awal": f"{row['duration_months']} Bulan",
             "Sisa Garansi": remaining_auto,
-            "Status": status_auto
+            "Status": status_auto,
+            "Foto_Base64": row['product_image']
         })
     return pd.DataFrame(processed_rows)
 
-def insert_data(sn, produk, pelanggan, tgl_beli, durasi):
+def insert_data(sn, produk, pelanggan, tgl_beli, jam_beli, durasi):
     try:
+        # Menggabungkan tanggal dan jam menjadi satu kesatuan string waktu
+        datetime_combined = datetime.combine(tgl_beli, jam_beli).strftime("%Y-%m-%d %H:%M:%S")
+        
         conn = sqlite3.connect("warranty_data.db")
         cursor = conn.cursor()
         cursor.execute("""
-            INSERT INTO warranties_v2 (serial_number, product_name, customer_name, purchase_date, duration_months, status)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, (sn, produk, pelanggan, str(tgl_beli), int(durasi), "Aktif"))
+            INSERT INTO warranties_v4 (serial_number, product_name, customer_name, purchase_datetime, duration_months, status, product_image)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (sn, produk, pelanggan, datetime_combined, int(durasi), "Aktif", ""))
         conn.commit()
         conn.close()
         return True
@@ -94,12 +113,12 @@ def insert_data(sn, produk, pelanggan, tgl_beli, durasi):
 def delete_data(sn):
     conn = sqlite3.connect("warranty_data.db")
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM warranties_v2 WHERE serial_number = ?", (sn,))
+    cursor.execute("SELECT * FROM warranties_v4 WHERE serial_number = ?", (sn,))
     data = cursor.fetchone()
     if data is None:
         conn.close()
         return False
-    cursor.execute("DELETE FROM warranties_v2 WHERE serial_number = ?", (sn,))
+    cursor.execute("DELETE FROM warranties_v4 WHERE serial_number = ?", (sn,))
     conn.commit()
     conn.close()
     return True
@@ -110,11 +129,8 @@ if 'logged_in' not in st.session_state:
 
 # --- TAMPILAN UTAMA DASHBOARD ---
 # Menampilkan Foto Logo dari folder GitHub Anda secara lokal
-NAMA_FILE_LOGO = "hv.avif"
-
 try:
-    # Menampilkan foto logo dari folder dengan lebar 150 pixel
-    st.image(NAMA_FILE_LOGO, width=200)
+    st.image("15976.jpg", width=150)
 except Exception:
     pass
 
@@ -133,7 +149,7 @@ if cari_sn:
         hasil = df_garansi[df_garansi["Nomor Serial"].str.lower() == cari_sn.strip().lower()]
         if not hasil.empty:
             st.success("✨ Data Garansi Ditemukan!")
-            st.table(hasil)
+            st.table(hasil.drop(columns=["Foto_Base64"]))
         else:
             st.error("❌ Mohon maaf, Nomor Serial tidak terdaftar di sistem kami.")
     else:
@@ -168,19 +184,23 @@ with st.sidebar:
             
         st.markdown("---")
         
-        # FORMULIR 1: INPUT GARANSI BARU
+        # FORMULIR 1: INPUT GARANSI BARU DENGAN JAM MENIT
         st.subheader("📝 Input Garansi Baru")
         with st.form("form_input", clear_on_submit=True):
             input_sn = st.text_input("Nomor Serial:", placeholder="Contoh: SN-2026-001")
             input_produk = st.text_input("Nama Produk:", placeholder="Contoh: Mobil Mainan")
             input_pelanggan = st.text_input("Nama Pelanggan:", placeholder="Contoh: Pasep")
+            
+            # FITUR BARU: Input Kalender dan Input Jam Transaksi
             input_tgl = st.date_input("Tanggal Pembelian:", value=datetime.today().date())
+            input_jam = st.time_input("Jam Pembelian:", value=datetime.today().time())
+            
             input_durasi = st.number_input("Durasi Garansi (Bulan):", min_value=1, max_value=120, value=12)
             
             submit_button = st.form_submit_button("Simpan Data")
             if submit_button:
                 if input_sn and input_produk and input_pelanggan:
-                    sukses = insert_data(input_sn.strip(), input_produk.strip(), input_pelanggan.strip(), input_tgl, input_durasi)
+                    sukses = insert_data(input_sn.strip(), input_produk.strip(), input_pelanggan.strip(), input_tgl, input_jam, input_durasi)
                     if sukses:
                         st.success("🎉 Data berhasil disimpan!")
                         st.rerun()
@@ -208,49 +228,24 @@ with st.sidebar:
                     st.warning("⚠️ Masukkan Nomor Serial terlebih dahulu!")
 
 
-# TAMPILAN 3: MANAJEMEN DATA & STATISTIK (HANYA MUNCUL JIKA SUDAH LOGIN)
+# TAMPILAN 3: TABEL DATA ADMIN
 if st.session_state['logged_in']:
-    # Hitung metrik data secara dinamis
-    total_produk = len(df_garansi)
-    aktif_count = len(df_garansi[df_garansi["Status"] == "🟢 Aktif"]) if not df_garansi.empty else 0
-    expired_count = len(df_garansi[df_garansi["Status"] == "🔴 Expired"]) if not df_garansi.empty else 0
-
-    # PEMBAGIAN LAYAR: Kiri untuk Tabel, Kanan untuk Grafik
-    col_tabel, col_grafik = st.columns([2, 1])
-
-    with col_tabel:
-        st.write("### 📋 Semua Data Garansi (Sisi Admin)")
-        if not df_garansi.empty:
-            st.dataframe(df_garansi, use_container_width=True)
-            
-            csv_data = df_garansi.to_csv(index=False).encode('utf-8')
-            st.download_button(
-                label="📥 Unduh Semua Data Garansi (CSV/Excel)",
-                data=csv_data,
-                file_name="laporan_garansi_otomatis.csv",
-                mime="text/csv",
-                use_container_width=True
-            )
-        else:
-            st.info("Database masih kosong. Silakan tambah data melalui formulir di sidebar kiri.")
-
-    with col_grafik:
-        st.write("### 📊 Statistik Status")
-        if not df_garansi.empty and (aktif_count > 0 or expired_count > 0):
-            # --- PROSES MEMBUAT GRAFIK PIE CHART ---
-            labels = ['Aktif', 'Expired']
-            sizes = [aktif_count, expired_count]
-            colors = ['#2ecc71', '#e74c3c'] # Hijau untuk Aktif, Merah untuk Expired
-            
-            fig, ax = plt.subplots(figsize=(4, 4))
-            # Membuat Pie Chart dengan persentase otomatis
-            ax.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90, colors=colors, 
-                   textprops={'fontsize': 10, 'weight': 'bold'})
-            ax.axis('equal')  # Memastikan lingkaran berbentuk bulat sempurna
-            
-            # Memunculkan grafik ke layar website
-            st.pyplot(fig)
-        else:
-            st.info("Grafik baru akan muncul setelah Anda menginput data garansi.")
+    st.write("### 📋 Semua Data Garansi (Sisi Admin)")
+    if not df_garansi.empty:
+        st.dataframe(df_garansi.drop(columns=["Foto_Base64"]), use_container_width=True)
+        
+        csv_data = df_garansi.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="📥 Unduh Semua Data Garansi (CSV/Excel)",
+            data=csv_data,
+            file_name="laporan_garansi_otomatis.csv",
+            mime="text/csv",
+            use_container_width=True
+        )
+    else:
+        st.info("Database masih kosong. Silakan tambah data melalui formulir di sidebar kiri.")
 else:
     st.info("ℹ️ Panel data admin dan fitur rekap laporan disembunyikan. Silakan login pada menu sidebar untuk membukanya.")
+
+# --- AUTO REFRESH HALAMAN (Agar detik hitung mundur berjalan live) ---
+if cari_sn or st.session_state['logged_in']:
