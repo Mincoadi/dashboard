@@ -20,11 +20,7 @@ PASSWORD_ADMIN = "admin123"
 # 3. FUNGSI COUNTDOWN (BERBASIS DETIK DARI SERVER)
 # ==========================================
 def get_countdown_component(seconds_left, uid, height=50):
-    """
-    Membuat komponen HTML/JS countdown dari sisa detik yang diberikan.
-    seconds_left: integer (bisa negatif jika expired)
-    uid: unique id untuk elemen
-    """
+    """Membuat komponen HTML/JS countdown dari sisa detik yang diberikan."""
     if seconds_left <= 0:
         return components.html("<span style='color:red; font-weight:bold;'>🔴 Expired</span>", height=30)
     
@@ -60,13 +56,13 @@ def get_countdown_component(seconds_left, uid, height=50):
     return components.html(html_code, height=height)
 
 # ==========================================
-# 4. INISIALISASI DATABASE
+# 4. INISIALISASI DATABASE (PAKAI NAMA TABEL LAMA)
 # ==========================================
 def init_db():
     conn = sqlite3.connect("warranty_data.db")
     c = conn.cursor()
     c.execute("""
-        CREATE TABLE IF NOT EXISTS warranties (
+        CREATE TABLE IF NOT EXISTS warranties_v4 (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             serial_number TEXT UNIQUE,
             product_name TEXT,
@@ -80,7 +76,7 @@ def init_db():
     conn.commit()
     conn.close()
 
-init_db()
+init_db()  # Pastikan tabel ada
 
 # ==========================================
 # 5. FUNGSI BANTU HITUNG SISA GARANSI
@@ -98,7 +94,6 @@ def calculate_warranty(purchase_datetime_str, duration_months):
         if seconds_left <= 0:
             return "🔴 Expired", "Expired", 0
         
-        # Konversi detik ke bulan, hari, jam, menit, detik (1 bulan = 30 hari)
         total_detik = int(seconds_left)
         months = total_detik // (30 * 24 * 3600)
         sisa = total_detik % (30 * 24 * 3600)
@@ -117,7 +112,7 @@ def calculate_warranty(purchase_datetime_str, duration_months):
         teks += f"{hours} Jam {minutes} Mnt {seconds} Dtk"
         
         return "🟢 Aktif", teks, seconds_left
-    except Exception as e:
+    except Exception:
         return "🔴 Error", "Data Tidak Valid", 0
 
 # ==========================================
@@ -127,7 +122,7 @@ def calculate_warranty(purchase_datetime_str, duration_months):
 def get_data():
     conn = sqlite3.connect("warranty_data.db")
     df_raw = pd.read_sql_query(
-        "SELECT serial_number, product_name, customer_name, purchase_datetime, duration_months, status, product_image FROM warranties",
+        "SELECT serial_number, product_name, customer_name, purchase_datetime, duration_months, status, product_image FROM warranties_v4",
         conn
     )
     conn.close()
@@ -147,7 +142,7 @@ def get_data():
             "Durasi Awal": f"{row['duration_months']} Bulan",
             "DurasiBulan": row['duration_months'],
             "Sisa Garansi": sisa_teks,
-            "SisaDetik": int(sisa_detik),   # untuk countdown
+            "SisaDetik": int(sisa_detik),
             "Status": status_icon,
             "Foto_Base64": row['product_image']
         })
@@ -162,7 +157,7 @@ def insert_data(sn, produk, pelanggan, tgl_beli, jam_beli, durasi):
         conn = sqlite3.connect("warranty_data.db")
         c = conn.cursor()
         c.execute("""
-            INSERT INTO warranties
+            INSERT INTO warranties_v4
             (serial_number, product_name, customer_name, purchase_datetime, duration_months, status, product_image)
             VALUES (?, ?, ?, ?, ?, ?, ?)
         """, (sn, produk, pelanggan, datetime_combined, int(durasi), "Aktif", ""))
@@ -176,12 +171,12 @@ def insert_data(sn, produk, pelanggan, tgl_beli, jam_beli, durasi):
 def delete_data(sn):
     conn = sqlite3.connect("warranty_data.db")
     c = conn.cursor()
-    c.execute("SELECT * FROM warranties WHERE serial_number = ?", (sn,))
+    c.execute("SELECT * FROM warranties_v4 WHERE serial_number = ?", (sn,))
     data = c.fetchone()
     if data is None:
         conn.close()
         return False
-    c.execute("DELETE FROM warranties WHERE serial_number = ?", (sn,))
+    c.execute("DELETE FROM warranties_v4 WHERE serial_number = ?", (sn,))
     conn.commit()
     conn.close()
     clear_cache()
@@ -205,7 +200,6 @@ st.title("Portal Garansi Produk Resmi")
 st.caption("Sistem Pelacakan Garansi untuk Pelanggan & Panel Manajemen Admin")
 st.markdown("---")
 
-# Ambil data dari database (dengan cache)
 df_garansi = get_data()
 
 # -------------------------------------------------------------------------
@@ -309,7 +303,6 @@ if st.session_state['logged_in']:
         df_tampil = df_garansi.drop(columns=["SisaDetik", "Foto_Base64"])
         st.dataframe(df_tampil, use_container_width=True)
         
-        # Tombol download CSV
         csv_data = df_tampil.to_csv(index=False).encode('utf-8')
         st.download_button(
             label="📥 Unduh Semua Data Garansi (CSV/Excel)",
