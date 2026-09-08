@@ -1,3 +1,34 @@
+# Taruh di atas, setelah import
+def get_countdown_html(expiry_dt_str):
+    if not expiry_dt_str:
+        return "<span>❌ Tidak valid</span>"
+    return f"""
+    <div id="countdown"></div>
+    <script>
+    const target = new Date("{expiry_dt_str}").getTime();
+    function updateCountdown() {{
+        const now = new Date().getTime();
+        const diff = target - now;
+        if (diff <= 0) {{
+            document.getElementById('countdown').innerHTML = '🔴 Expired';
+            return;
+        }}
+        const months = Math.floor(diff / (1000 * 60 * 60 * 24 * 30));
+        const days = Math.floor((diff % (1000 * 60 * 60 * 24 * 30)) / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+        let text = '';
+        if(months > 0) text += months + ' Bln ';
+        if(days > 0) text += days + ' Hari ';
+        text += hours + ' Jam ' + minutes + ' Mnt ' + seconds + ' Dtk';
+        document.getElementById('countdown').innerHTML = '🟢 ' + text;
+    }}
+    updateCountdown();
+    setInterval(updateCountdown, 1000);
+    </script>
+    """
+    
 import streamlit as st
 import pandas as pd
 import sqlite3
@@ -138,12 +169,34 @@ if cari_sn:
         hasil = df_garansi[df_garansi["Nomor Serial"].str.lower() == cari_sn.strip().lower()]
         if not hasil.empty:
             st.success("✨ Data Garansi Ditemukan!")
-            st.table(hasil.drop(columns=["Foto_Base64"]))
+            
+            # Looping per baris data (karena bisa jadi lebih dari 1)
+            for _, row in hasil.iterrows():
+                # Ambil tanggal beli dari database
+                purchase_dt = datetime.strptime(row['Waktu Beli'], "%Y-%m-%d %H:%M:%S")
+                
+                # Ambil angka durasi (misal "12 Bulan" -> ambil angka 12)
+                durasi_bulan = int(row['Durasi Awal'].split()[0]) 
+                
+                # Hitung waktu kadaluarsa (expiry)
+                expiry_dt = purchase_dt + relativedelta(months=durasi_bulan)
+                expiry_time_str = expiry_dt.isoformat()  # Ubah jadi format string untuk JavaScript
+                
+                # Tampilkan data produk
+                st.markdown(f"**🔹 Nomor Serial:** {row['Nomor Serial']}")
+                st.markdown(f"**📦 Produk:** {row['Nama Produk']}  |  **👤 Pelanggan:** {row['Pelanggan']}")
+                
+                # Tampilkan status teks (Aktif/Expired)
+                st.markdown(f"**Status:** {row['Status']}")
+                
+                # Tampilkan Countdown Hidup (jalan sendiri di browser!)
+                st.markdown(get_countdown_html(expiry_time_str), unsafe_allow_html=True)
+                st.divider()  # Garis pemisah antar produk
+                
         else:
             st.error("❌ Mohon maaf, Nomor Serial tidak terdaftar di sistem kami.")
     else:
         st.error("❌ Belum ada data garansi terdaftar di dalam sistem.")
-
 st.markdown("---")
 
 # TAMPILAN 2: PANEL SIDEBAR & MENU ADMIN
@@ -227,8 +280,3 @@ if st.session_state['logged_in']:
         st.info("Database masih kosong. Silakan tambah data melalui formulir di sidebar kiri.")
 else:
     st.info("ℹ️ Panel data admin dan fitur rekap laporan disembunyikan. Silakan login pada menu sidebar untuk membukanya.")
-
-# --- AUTO REFRESH HALAMAN (Agar detik hitung mundur berjalan live) ---
-if cari_sn or st.session_state['logged_in']:
-    time.sleep(1)
-    st.rerun()
