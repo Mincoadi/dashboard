@@ -109,13 +109,11 @@ if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
 
 # --- TAMPILAN UTAMA DASHBOARD ---
-# Menampilkan Foto Logo Kustom dengan format HTML yang benar
+# Menampilkan Foto Logo menggunakan fungsi resmi Streamlit
 LINK_FOTO_LOGO = "https://githubusercontent.com"
 
-st.markdown(
-    f"<div style='text-align: left;'><img src='{LINK_FOTO_LOGO}' width='150' style='margin-bottom: 10px; border-radius: 8px;'></div>", 
-    unsafe_allow_html=True
-)
+# Memanggil gambar secara aman, lebar diatur 150 pixel
+st.image(LINK_FOTO_LOGO, width=150)
 
 st.title("Portal Garansi Produk Resmi")
 st.caption("Sistem Pelacakan Garansi untuk Pelanggan & Panel Manajemen Admin")
