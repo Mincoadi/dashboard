@@ -3,9 +3,7 @@ import pandas as pd
 import sqlite3
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
-import base64
-import io
-from PIL import Image
+import streamlit.components.v1 as components
 
 # ==========================================
 # 1. KONFIGURASI HALAMAN
@@ -13,14 +11,14 @@ from PIL import Image
 st.set_page_config(page_title="Portal Garansi", page_icon="📦", layout="wide")
 
 # ==========================================
-# 2. FUNGSI COUNTDOWN JAVASCRIPT (UNIK ID)
+# 2. FUNGSI COUNTDOWN KOMPONEN (JavaScript)
 # ==========================================
-def get_countdown_html(expiry_dt_str, uid):
-    """Menghasilkan HTML + JavaScript countdown real-time dengan ID unik."""
+def get_countdown_component(expiry_dt_str, uid, height=50):
+    """Mengembalikan komponen HTML/JS countdown real-time dengan ID unik."""
     if not expiry_dt_str:
-        return "<span>❌ Tidak valid</span>"
-    return f"""
-    <div id="countdown_{uid}"></div>
+        return components.html("<span>❌ Tidak valid</span>", height=30)
+    html_code = f"""
+    <div id="countdown_{uid}" style="font-size:16px; font-weight:bold;"></div>
     <script>
     (function() {{
         const target = new Date("{expiry_dt_str}").getTime();
@@ -49,12 +47,13 @@ def get_countdown_html(expiry_dt_str, uid):
     }})();
     </script>
     """
+    return components.html(html_code, height=height)
 
 # ==========================================
 # 3. INISIALISASI DATABASE
 # ==========================================
 USER_ADMIN = "admin"
-PASSWORD_ADMIN = "admin123"  # Nanti pindahkan ke st.secrets untuk keamanan
+PASSWORD_ADMIN = "admin123"  # Ganti dengan st.secrets jika perlu
 
 def init_db():
     conn = sqlite3.connect("warranty_data.db")
@@ -77,7 +76,7 @@ def init_db():
 init_db()
 
 # ==========================================
-# 4. FUNGSI BANTU HITUNG SISA GARANSI
+# 4. FUNGSI HITUNG SISA GARANSI
 # ==========================================
 def calculate_precise_warranty(purchase_datetime_str, duration_months):
     try:
@@ -105,7 +104,7 @@ def calculate_precise_warranty(purchase_datetime_str, duration_months):
 # ==========================================
 # 5. FUNGSI DATABASE (DENGAN CACHING)
 # ==========================================
-@st.cache_data(ttl=5)   # Data akan di-cache 5 detik, refresh otomatis
+@st.cache_data(ttl=5)
 def get_data():
     conn = sqlite3.connect("warranty_data.db")
     df_raw = pd.read_sql_query(
@@ -126,7 +125,7 @@ def get_data():
             "Pelanggan": row['customer_name'],
             "Waktu Beli": row['purchase_datetime'],
             "Durasi Awal": f"{row['duration_months']} Bulan",
-            "DurasiBulan": row['duration_months'],           # 👈 tambahan untuk memudahkan hitung expiry
+            "DurasiBulan": row['duration_months'],   # untuk hitung expiry
             "Sisa Garansi": remaining_auto,
             "Status": status_auto,
             "Foto_Base64": row['product_image']
@@ -134,7 +133,6 @@ def get_data():
     return pd.DataFrame(processed)
 
 def clear_cache():
-    """Hapus cache agar data terbaru tampil setelah insert/delete."""
     st.cache_data.clear()
 
 def insert_data(sn, produk, pelanggan, tgl_beli, jam_beli, durasi):
@@ -149,13 +147,13 @@ def insert_data(sn, produk, pelanggan, tgl_beli, jam_beli, durasi):
         """, (sn, produk, pelanggan, datetime_combined, int(durasi), "Aktif", ""))
         conn.commit()
         conn.close()
-        clear_cache()  # <-- langsung bersihkan cache
+        clear_cache()
         return True
     except sqlite3.IntegrityError:
         return False
 
 def delete_data(sn):
-    conn = sqlite3.connect("warranty_data.db")   # <-- hanya satu koneksi
+    conn = sqlite3.connect("warranty_data.db")
     c = conn.cursor()
     c.execute("SELECT * FROM warranties_v4 WHERE serial_number = ?", (sn,))
     data = c.fetchone()
@@ -165,7 +163,7 @@ def delete_data(sn):
     c.execute("DELETE FROM warranties_v4 WHERE serial_number = ?", (sn,))
     conn.commit()
     conn.close()
-    clear_cache()  # <-- langsung bersihkan cache
+    clear_cache()
     return True
 
 # ==========================================
@@ -186,7 +184,7 @@ st.title("Portal Garansi Produk Resmi")
 st.caption("Sistem Pelacakan Garansi untuk Pelanggan & Panel Manajemen Admin")
 st.markdown("---")
 
-df_garansi = get_data()   # Data otomatis dicache
+df_garansi = get_data()
 
 # --- PUSAT CEK GARANSI (PELANGGAN) ---
 st.write("### 🔍 Pusat Cek Status Garansi (Pelanggan)")
@@ -197,19 +195,16 @@ if cari_sn:
         hasil = df_garansi[df_garansi["Nomor Serial"].str.lower() == cari_sn.strip().lower()]
         if not hasil.empty:
             st.success("✨ Data Garansi Ditemukan!")
-            # Loop dengan enumerate untuk ID unik
             for idx, row in hasil.iterrows():
-                # Ambil data
                 purchase_dt = datetime.strptime(row['Waktu Beli'], "%Y-%m-%d %H:%M:%S")
-                durasi_bulan = int(row['DurasiBulan'])   # langsung pakai angka, tidak perlu parsing
+                durasi_bulan = int(row['DurasiBulan'])
                 expiry_dt = purchase_dt + relativedelta(months=durasi_bulan)
                 expiry_time_str = expiry_dt.isoformat()
 
                 st.markdown(f"**🔹 Nomor Serial:** {row['Nomor Serial']}")
                 st.markdown(f"**📦 Produk:** {row['Nama Produk']}  |  **👤 Pelanggan:** {row['Pelanggan']}")
                 st.markdown(f"**Status:** {row['Status']}")
-                # Tampilkan countdown dengan ID unik (idx)
-                st.markdown(get_countdown_html(expiry_time_str, idx), unsafe_allow_html=True)
+                get_countdown_component(expiry_time_str, idx, height=50)
                 st.divider()
         else:
             st.error("❌ Mohon maaf, Nomor Serial tidak terdaftar di sistem kami.")
@@ -296,7 +291,5 @@ else:
     st.info("ℹ️ Panel data admin dan fitur rekap laporan disembunyikan. Silakan login pada menu sidebar untuk membukanya.")
 
 # ==========================================
-# 8. (TIDAK ADA LAGI auto-reload tiap detik!)
+# 8. TIDAK ADA AUTO-REFRESH DI SINI!
 # ==========================================
-# Semua timer countdown kini berjalan di sisi browser (JavaScript).
-# Tidak perlu time.sleep() atau st.rerun() di sini.
