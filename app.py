@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import sqlite3
+import matplotlib.pyplot as plt  # Fitur baru untuk membuat grafik
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 
@@ -90,24 +91,18 @@ def insert_data(sn, produk, pelanggan, tgl_beli, durasi):
     except sqlite3.IntegrityError:
         return False
 
-# --- FITUR BARU: FUNGSI HAPUS DATA ---
 def delete_data(sn):
     conn = sqlite3.connect("warranty_data.db")
     cursor = conn.cursor()
-    
-    # Cek apakah nomor serial ada di database
     cursor.execute("SELECT * FROM warranties_v2 WHERE serial_number = ?", (sn,))
     data = cursor.fetchone()
-    
     if data is None:
         conn.close()
-        return False # Data tidak ditemukan
-        
-    # Jika ada, lakukan penghapusan
+        return False
     cursor.execute("DELETE FROM warranties_v2 WHERE serial_number = ?", (sn,))
     conn.commit()
     conn.close()
-    return True # Berhasil dihapus
+    return True
 
 # --- SISTEM CEK STATUS LOGIN ---
 if 'logged_in' not in st.session_state:
@@ -164,7 +159,7 @@ with st.sidebar:
             
         st.markdown("---")
         
-        # --- FORMULIR 1: INPUT GARANSI BARU ---
+        # FORMULIR 1: INPUT GARANSI BARU
         st.subheader("📝 Input Garansi Baru")
         with st.form("form_input", clear_on_submit=True):
             input_sn = st.text_input("Nomor Serial:", placeholder="Contoh: SN-2026-001")
@@ -187,12 +182,11 @@ with st.sidebar:
 
         st.markdown("---")
         
-        # --- FITUR BARU: FORMULIR 2: HAPUS DATA GARANSI ---
+        # FORMULIR 2: HAPUS DATA GARANSI
         st.subheader("🗑️ Hapus Data Garansi")
         with st.form("form_hapus", clear_on_submit=True):
             hapus_sn = st.text_input("Nomor Serial yang Ingin Dihapus:", placeholder="Masukkan nomor serial...")
             submit_hapus = st.form_submit_button("Hapus Permanen Data")
-            
             if submit_hapus:
                 if hapus_sn:
                     berhasil_hapus = delete_data(hapus_sn.strip())
@@ -205,21 +199,49 @@ with st.sidebar:
                     st.warning("⚠️ Masukkan Nomor Serial terlebih dahulu!")
 
 
-# TAMPILAN 3: TABEL DATA ADMIN (HANYA MUNCUL JIKA SUDAH LOGIN)
+# TAMPILAN 3: MANAJEMEN DATA & STATISTIK (HANYA MUNCUL JIKA SUDAH LOGIN)
 if st.session_state['logged_in']:
-    st.write("### 📋 Semua Data Garansi (Sisi Admin)")
-    if not df_garansi.empty:
-        st.dataframe(df_garansi, use_container_width=True)
-        
-        csv_data = df_garansi.to_csv(index=False).encode('utf-8')
-        st.download_button(
-            label="📥 Unduh Semua Data Garansi (CSV/Excel)",
-            data=csv_data,
-            file_name="laporan_garansi_otomatis.csv",
-            mime="text/csv",
-            use_container_width=True
-        )
-    else:
-        st.info("Database masih kosong. Silakan tambah data melalui formulir di sidebar kiri.")
+    # Hitung metrik data secara dinamis
+    total_produk = len(df_garansi)
+    aktif_count = len(df_garansi[df_garansi["Status"] == "🟢 Aktif"]) if not df_garansi.empty else 0
+    expired_count = len(df_garansi[df_garansi["Status"] == "🔴 Expired"]) if not df_garansi.empty else 0
+
+    # PEMBAGIAN LAYAR: Kiri untuk Tabel, Kanan untuk Grafik
+    col_tabel, col_grafik = st.columns([2, 1])
+
+    with col_tabel:
+        st.write("### 📋 Semua Data Garansi (Sisi Admin)")
+        if not df_garansi.empty:
+            st.dataframe(df_garansi, use_container_width=True)
+            
+            csv_data = df_garansi.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="📥 Unduh Semua Data Garansi (CSV/Excel)",
+                data=csv_data,
+                file_name="laporan_garansi_otomatis.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
+        else:
+            st.info("Database masih kosong. Silakan tambah data melalui formulir di sidebar kiri.")
+
+    with col_grafik:
+        st.write("### 📊 Statistik Status")
+        if not df_garansi.empty and (aktif_count > 0 or expired_count > 0):
+            # --- PROSES MEMBUAT GRAFIK PIE CHART ---
+            labels = ['Aktif', 'Expired']
+            sizes = [aktif_count, expired_count]
+            colors = ['#2ecc71', '#e74c3c'] # Hijau untuk Aktif, Merah untuk Expired
+            
+            fig, ax = plt.subplots(figsize=(4, 4))
+            # Membuat Pie Chart dengan persentase otomatis
+            ax.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90, colors=colors, 
+                   textprops={'fontsize': 10, 'weight': 'bold'})
+            ax.axis('equal')  # Memastikan lingkaran berbentuk bulat sempurna
+            
+            # Memunculkan grafik ke layar website
+            st.pyplot(fig)
+        else:
+            st.info("Grafik baru akan muncul setelah Anda menginput data garansi.")
 else:
     st.info("ℹ️ Panel data admin dan fitur rekap laporan disembunyikan. Silakan login pada menu sidebar untuk membukanya.")
