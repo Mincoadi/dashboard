@@ -7,7 +7,9 @@ from dateutil.relativedelta import relativedelta
 # 1. Konfigurasi Halaman & Koneksi Database SQLite
 st.set_page_config(page_title="Warranty Dashboard", layout="wide")
 
-# Konfigurasi Password Admin (Silakan ganti kata 'admin123' sesuai keinginan Anda)
+# --- KONFIGURASI KREDENSIAL ADMIN ---
+# Anda bisa mengganti username dan password di bawah ini sesuai keinginan Anda
+USER_ADMIN = "admin"
 PASSWORD_ADMIN = "admin123"
 
 def init_db():
@@ -118,26 +120,31 @@ if cari_sn:
 st.markdown("---")
 
 
-# TAMPILAN 2: PANEL SIDEBAR & MENU ADMIN (TERKUNCI PASSWORD)
+# TAMPILAN 2: PANEL SIDEBAR & MENU ADMIN (TERKUNCI USERNAME & PASSWORD)
 with st.sidebar:
     st.header("🔐 Area Admin")
     
     if not st.session_state['logged_in']:
-        # Jika belum login, tampilkan form login
-        st.write("Silakan masuk untuk mengakses fitur input dan laporan.")
-        input_password = st.text_input("Masukkan Password Admin:", type="password")
+        # Jika belum login, tampilkan form login lengkap
+        st.write("Silakan masuk untuk mengakses fitur admin.")
+        
+        # Kolom Input Username & Password
+        input_username = st.text_input("Username Admin:", placeholder="Masukkan username...")
+        input_password = st.text_input("Password Admin:", type="password", placeholder="Masukkan password...")
+        
         btn_login = st.button("Masuk")
         
         if btn_login:
-            if input_password == PASSWORD_ADMIN:
+            # Validasi apakah username DAN password sudah sesuai dengan konfigurasi di atas
+            if input_username == USER_ADMIN and input_password == PASSWORD_ADMIN:
                 st.session_state['logged_in'] = True
                 st.success("🔓 Login berhasil!")
                 st.rerun()
             else:
-                st.error("❌ Password salah! Akses ditolak.")
+                st.error("❌ Username atau Password salah! Akses ditolak.")
     else:
-        # Jika sudah sukses login, tampilkan Form Input Data Baru
-        st.write("Anda masuk sebagai **Admin**")
+        # Jika sudah sukses login, tampilkan keterangan nama admin dan tombol logout
+        st.write(f"Anda masuk sebagai **{USER_ADMIN}**")
         btn_logout = st.button("Keluar / Logout")
         if btn_logout:
             st.session_state['logged_in'] = False
@@ -184,5 +191,4 @@ if st.session_state['logged_in']:
     else:
         st.info("Database masih kosong. Silakan tambah data melalui formulir di sidebar kiri.")
 else:
-    # Pesan penutup untuk pengunjung yang belum login
     st.info("ℹ️ Panel data admin dan fitur rekap laporan disembunyikan. Silakan login pada menu sidebar untuk membukanya.")
