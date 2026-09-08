@@ -10,9 +10,9 @@ st.set_page_config(page_title="Warranty Dashboard", layout="wide")
 def init_db():
     conn = sqlite3.connect("warranty_data.db")
     cursor = conn.cursor()
-    # Menggunakan purchase_date dan duration_months untuk perhitungan otomatis
-   cursor.execute("""
-    CREATE TABLE IF NOT EXISTS warranties_v2 (
+    # Menggunakan tabel versi baru warranties_v2 untuk hitung mundur otomatis
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS warranties_v2 (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             serial_number TEXT UNIQUE,
             product_name TEXT,
@@ -30,20 +30,18 @@ init_db()
 # --- FUNGSI HITUNG MUNDUR GARANSI ---
 def calculate_remaining_warranty(purchase_date_str, duration_months):
     try:
-        # Mengubah teks tanggal dari database menjadi objek tanggal asli
         purchase_date = datetime.strptime(purchase_date_str, "%Y-%m-%d").date()
         today = datetime.today().date()
         
-        # Menghitung tanggal kedaluwarsa (Tanggal beli + durasi bulan)
+        # Menghitung tanggal kedaluwarsa
         expiry_date = purchase_date + relativedelta(months=duration_months)
         
         if today >= expiry_date:
             return "🔴 Expired", "Expired"
         
-        # Menghitung selisih waktu dari hari ini ke tanggal expired
+        # Menghitung selisih waktu
         diff = relativedelta(expiry_date, today)
         
-        # Format tulisan sisa waktu
         if diff.years > 0:
             remaining_text = f"{diff.years} Tahun {diff.months} Bulan"
         elif diff.months > 0:
@@ -58,13 +56,12 @@ def calculate_remaining_warranty(purchase_date_str, duration_months):
 # --- FUNGSI AMBIL & SIMPAN DATA ---
 def get_data():
     conn = sqlite3.connect("warranty_data.db")
-    # Ambil data mentah dari database
     df_raw = pd.read_sql_query("SELECT serial_number, product_name, customer_name, purchase_date, duration_months, status FROM warranties_v2", conn)
+    conn.close()
     
     if df_raw.empty:
         return pd.DataFrame()
         
-    # Proses hitung mundur otomatis untuk setiap baris data
     processed_rows = []
     for _, row in df_raw.iterrows():
         status_auto, remaining_auto = calculate_remaining_warranty(row['purchase_date'], int(row['duration_months']))
@@ -125,10 +122,7 @@ with st.sidebar:
         input_sn = st.text_input("Nomor Serial:", placeholder="Contoh: SN-2026-001")
         input_produk = st.text_input("Nama Produk:", placeholder="Contoh: Mobil Mainan")
         input_pelanggan = st.text_input("Nama Pelanggan:", placeholder="Contoh: Pasep")
-        
-        # Fitur Baru: Kalender untuk memilih tanggal pembelian
         input_tgl = st.date_input("Tanggal Pembelian:", value=datetime.today().date())
-        # Fitur Baru: Pilihan angka durasi bulan
         input_durasi = st.number_input("Durasi Garansi (Bulan):", min_value=1, max_value=120, value=12)
         
         submit_button = st.form_submit_button("Simpan Data")
