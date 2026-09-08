@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import sqlite3
+import os
 from datetime import datetime, date
 from dateutil.relativedelta import relativedelta
 import streamlit.components.v1 as components
@@ -227,25 +228,27 @@ if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
 
 # ==========================================
-# 8. TAMPILAN UTAMA
+# 8. TAMPILAN UTAMA (HEADER DENGAN 2 GAMBAR)
 # ==========================================
-# Buat 2 kolom dengan lebar proporsional
-col1, col2 = st.columns([1, 1])  # bisa disesuaikan [1, 2] jika salah satu lebih lebar
+# Buat 3 kolom: logo1, logo2, judul
+col1, col2, col3 = st.columns([1, 1, 4])
 
 with col1:
-    try:
-        st.image("images (5).jpg", width=200)
-    except Exception:
-        pass
+    if os.path.exists("images (5).jpg"):
+        st.image("images (5).jpg", width=130)
+    else:
+        st.write("📦")  # fallback jika file tidak ada
 
 with col2:
-    try:
-        st.image("images (3).jpg", width=200)  # Ganti dengan nama file gambarmu
-    except Exception:
-        pass
+    if os.path.exists("images (3).jpg"):
+        st.image("images (3).jpg", width=130)
+    else:
+        st.write("📦")  # fallback
 
-st.title("Portal Garansi Produk Resmi")
-st.caption("Sistem Pelacakan Garansi untuk Pelanggan & Panel Manajemen Admin")
+with col3:
+    st.title("Portal Garansi Produk Resmi")
+    st.caption("Sistem Pelacakan Garansi untuk Pelanggan & Panel Manajemen Admin")
+
 st.markdown("---")
 
 df_garansi = get_data()
@@ -324,7 +327,7 @@ with st.sidebar:
         st.subheader("🗑️ Hapus Data Garansi")
         with st.form("form_hapus", clear_on_submit=True):
             hapus_sn = st.text_input("Nomor Serial yang Ingin Dihapus:", placeholder="Masukkan nomor serial...")
-            konfirmasi = st.checkbox("Saya yakin ingin menghapus data ini secara permanen!")
+            konfirmasi = st.checkbox("☑️ Saya yakin ingin menghapus data ini secara permanen!")
             submit_hapus = st.form_submit_button("Hapus Permanen")
             if submit_hapus:
                 if not konfirmasi:
@@ -365,29 +368,21 @@ if st.session_state['logged_in']:
             st.write("### 📋 Monitoring Unit Warranty")
             st.caption("Jumlah unit garansi per pelanggan")
             
-            # Hitung jumlah per pelanggan
             customer_counts = df_garansi['Pelanggan'].value_counts().reset_index()
             customer_counts.columns = ['Pelanggan', 'Jumlah Unit']
-            
-            # Tampilkan tabel
             st.dataframe(customer_counts, use_container_width=True, hide_index=True)
             
-            # Tampilkan bar chart horizontal
             fig, ax = plt.subplots(figsize=(6, 3))
             bars = ax.barh(customer_counts['Pelanggan'], customer_counts['Jumlah Unit'], color='#2e86c1')
             ax.set_xlabel('Jumlah Unit')
             ax.set_ylabel('Pelanggan')
             ax.set_title('Jumlah Unit Garansi per Pelanggan')
-            
-            # Tambahkan angka di ujung bar
             for bar in bars:
                 width = bar.get_width()
                 ax.text(width + 0.1, bar.get_y() + bar.get_height()/2, f'{int(width)}', 
                         va='center', ha='left', fontweight='bold', fontsize=10)
-            
             plt.tight_layout()
             st.pyplot(fig)
-        # ==========================================
 
         # ==========================================
         # POPOVER 2: STATISTIK GARANSI
@@ -406,7 +401,6 @@ if st.session_state['logged_in']:
             with col3:
                 st.metric("🔴 Expired", expired)
 
-            # Pie chart
             fig, ax = plt.subplots(figsize=(6, 4))
             colors = ['#2ecc71' if x == '🟢 Aktif' else '#e74c3c' for x in status_counts.index]
             wedges, texts, autotexts = ax.pie(
@@ -422,7 +416,6 @@ if st.session_state['logged_in']:
                 autotext.set_fontweight('bold')
             ax.axis('equal')
             st.pyplot(fig)
-        # ==========================================
 
     else:
         st.info("Database masih kosong. Silakan tambah data melalui formulir di sidebar kiri.")
