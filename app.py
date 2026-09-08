@@ -110,7 +110,7 @@ if 'logged_in' not in st.session_state:
 
 # --- TAMPILAN UTAMA DASHBOARD ---
 # Memanggil file gambar yang sudah ada di dalam folder GitHub Anda secara lokal
-NAMA_FILE_LOGO = "15976.jpg"
+NAMA_FILE_LOGO = "hv.avif"
 
 try:
     # Menampilkan foto logo dari folder dengan lebar 150 pixel
