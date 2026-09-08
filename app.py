@@ -8,7 +8,6 @@ from dateutil.relativedelta import relativedelta
 st.set_page_config(page_title="Warranty Dashboard", layout="wide")
 
 # --- KONFIGURASI KREDENSIAL ADMIN ---
-# Anda bisa mengganti username dan password di bawah ini sesuai keinginan Anda
 USER_ADMIN = "admin"
 PASSWORD_ADMIN = "admin123"
 
@@ -54,7 +53,7 @@ def calculate_remaining_warranty(purchase_date_str, duration_months):
     except Exception as e:
         return "🔴 Error", "Data Tidak Valid"
 
-# --- FUNGSI AMBIL & SIMPAN DATA ---
+# --- FUNGSI AMBIL, SIMPAN, & HAPUS DATA ---
 def get_data():
     conn = sqlite3.connect("warranty_data.db")
     df_raw = pd.read_sql_query("SELECT serial_number, product_name, customer_name, purchase_date, duration_months, status FROM warranties_v2", conn)
@@ -91,6 +90,25 @@ def insert_data(sn, produk, pelanggan, tgl_beli, durasi):
     except sqlite3.IntegrityError:
         return False
 
+# --- FITUR BARU: FUNGSI HAPUS DATA ---
+def delete_data(sn):
+    conn = sqlite3.connect("warranty_data.db")
+    cursor = conn.cursor()
+    
+    # Cek apakah nomor serial ada di database
+    cursor.execute("SELECT * FROM warranties_v2 WHERE serial_number = ?", (sn,))
+    data = cursor.fetchone()
+    
+    if data is None:
+        conn.close()
+        return False # Data tidak ditemukan
+        
+    # Jika ada, lakukan penghapusan
+    cursor.execute("DELETE FROM warranties_v2 WHERE serial_number = ?", (sn,))
+    conn.commit()
+    conn.close()
+    return True # Berhasil dihapus
+
 # --- SISTEM CEK STATUS LOGIN ---
 if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
@@ -102,7 +120,7 @@ st.markdown("---")
 
 df_garansi = get_data()
 
-# TAMPILAN 1: PUSAT CEK GARANSI (BISA DIAKSES SIAPA SAJA / UMUM)
+# TAMPILAN 1: PUSAT CEK GARANSI (UMUM)
 st.write("### 🔍 Pusat Cek Status Garansi (Pelanggan)")
 cari_sn = st.text_input("Masukkan Nomor Serial Produk Anda:", placeholder="Ketik nomor serial di sini...")
 
@@ -120,22 +138,17 @@ if cari_sn:
 st.markdown("---")
 
 
-# TAMPILAN 2: PANEL SIDEBAR & MENU ADMIN (TERKUNCI USERNAME & PASSWORD)
+# TAMPILAN 2: PANEL SIDEBAR & MENU ADMIN
 with st.sidebar:
     st.header("🔐 Area Admin")
     
     if not st.session_state['logged_in']:
-        # Jika belum login, tampilkan form login lengkap
         st.write("Silakan masuk untuk mengakses fitur admin.")
-        
-        # Kolom Input Username & Password
         input_username = st.text_input("Username Admin:", placeholder="Masukkan username...")
         input_password = st.text_input("Password Admin:", type="password", placeholder="Masukkan password...")
-        
         btn_login = st.button("Masuk")
         
         if btn_login:
-            # Validasi apakah username DAN password sudah sesuai dengan konfigurasi di atas
             if input_username == USER_ADMIN and input_password == PASSWORD_ADMIN:
                 st.session_state['logged_in'] = True
                 st.success("🔓 Login berhasil!")
@@ -143,7 +156,6 @@ with st.sidebar:
             else:
                 st.error("❌ Username atau Password salah! Akses ditolak.")
     else:
-        # Jika sudah sukses login, tampilkan keterangan nama admin dan tombol logout
         st.write(f"Anda masuk sebagai **{USER_ADMIN}**")
         btn_logout = st.button("Keluar / Logout")
         if btn_logout:
@@ -151,8 +163,9 @@ with st.sidebar:
             st.rerun()
             
         st.markdown("---")
-        st.subheader("📝 Input Garansi Baru")
         
+        # --- FORMULIR 1: INPUT GARANSI BARU ---
+        st.subheader("📝 Input Garansi Baru")
         with st.form("form_input", clear_on_submit=True):
             input_sn = st.text_input("Nomor Serial:", placeholder="Contoh: SN-2026-001")
             input_produk = st.text_input("Nama Produk:", placeholder="Contoh: Mobil Mainan")
@@ -161,7 +174,6 @@ with st.sidebar:
             input_durasi = st.number_input("Durasi Garansi (Bulan):", min_value=1, max_value=120, value=12)
             
             submit_button = st.form_submit_button("Simpan Data")
-            
             if submit_button:
                 if input_sn and input_produk and input_pelanggan:
                     sukses = insert_data(input_sn.strip(), input_produk.strip(), input_pelanggan.strip(), input_tgl, input_durasi)
@@ -172,6 +184,25 @@ with st.sidebar:
                         st.error("❌ Gagal! Nomor Serial sudah terdaftar.")
                 else:
                     st.warning("⚠️ Mohon isi semua kolom yang wajib!")
+
+        st.markdown("---")
+        
+        # --- FITUR BARU: FORMULIR 2: HAPUS DATA GARANSI ---
+        st.subheader("🗑️ Hapus Data Garansi")
+        with st.form("form_hapus", clear_on_submit=True):
+            hapus_sn = st.text_input("Nomor Serial yang Ingin Dihapus:", placeholder="Masukkan nomor serial...")
+            submit_hapus = st.form_submit_button("Hapus Permanen Data")
+            
+            if submit_hapus:
+                if hapus_sn:
+                    berhasil_hapus = delete_data(hapus_sn.strip())
+                    if berhasil_hapus:
+                        st.success(f"🗑️ Data dengan SN '{hapus_sn}' berhasil dihapus!")
+                        st.rerun()
+                    else:
+                        st.error("❌ Gagal! Nomor Serial tidak ditemukan di database.")
+                else:
+                    st.warning("⚠️ Masukkan Nomor Serial terlebih dahulu!")
 
 
 # TAMPILAN 3: TABEL DATA ADMIN (HANYA MUNCUL JIKA SUDAH LOGIN)
