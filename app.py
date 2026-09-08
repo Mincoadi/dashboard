@@ -4,32 +4,30 @@ import sqlite3
 from datetime import datetime, date
 from dateutil.relativedelta import relativedelta
 import streamlit.components.v1 as components
+import matplotlib.pyplot as plt
 
 # ==========================================
 # 1. KONFIGURASI HALAMAN
 # ==========================================
 st.set_page_config(page_title="Portal Garansi", page_icon="📦", layout="wide")
+
 # ==========================================
-# KUSTOMISASI WARNA SIDEBAR (CSS)
+# 1b. KUSTOMISASI WARNA SIDEBAR (CSS)
 # ==========================================
 st.markdown("""
 <style>
-    /* Ganti background sidebar */
     [data-testid="stSidebar"] {
-        background-color: #d4e6f1;  /* Biru soft */
+        background-color: #d4e6f1;
     }
-    /* Ganti warna teks di sidebar biar kontras */
     [data-testid="stSidebar"] * {
-        color: #154360;  /* Biru tua untuk teks */
+        color: #154360;
     }
-    /* Ganti warna header sidebar */
-    [data-testid="stSidebar"] h1, 
-    [data-testid="stSidebar"] h2, 
-    [data-testid="stSidebar"] h3, 
+    [data-testid="stSidebar"] h1,
+    [data-testid="stSidebar"] h2,
+    [data-testid="stSidebar"] h3,
     [data-testid="stSidebar"] h4 {
-        color: #0b3d5c;  /* Biru lebih tua untuk judul */
+        color: #0b3d5c;
     }
-    /* Ganti warna tombol di sidebar */
     [data-testid="stSidebar"] .stButton > button {
         background-color: #2e86c1;
         color: white;
@@ -39,12 +37,10 @@ st.markdown("""
         background-color: #1a5276;
         color: white;
     }
-    /* Ganti warna input text di sidebar */
     [data-testid="stSidebar"] .stTextInput > div > div > input {
         background-color: #ffffff;
         border: 1px solid #a9cce3;
     }
-    /* Ganti warna form border */
     [data-testid="stSidebar"] .stForm {
         border: 1px solid #a9cce3;
         border-radius: 10px;
@@ -67,7 +63,7 @@ def get_countdown_component(seconds_left, uid, height=50):
     """Menampilkan countdown hanya dalam bulan dan hari (tanpa jam/menit/detik)."""
     if seconds_left <= 0:
         return components.html("<span style='color:red; font-weight:bold;'>🔴 Expired</span>", height=30)
-    
+
     html_code = f"""
     <div id="countdown_{uid}" style="font-size:16px; font-weight:bold;"></div>
     <script>
@@ -80,7 +76,6 @@ def get_countdown_component(seconds_left, uid, height=50):
                 el.innerHTML = '🔴 Expired';
                 return;
             }}
-            // Hitung bulan dan hari (1 bulan = 30 hari)
             const totalDays = Math.floor(remaining / (24 * 3600));
             const months = Math.floor(totalDays / 30);
             const days = totalDays % 30;
@@ -133,16 +128,15 @@ def calculate_warranty(purchase_datetime_str, duration_months):
         purchase_date = datetime.strptime(purchase_datetime_str[:10], "%Y-%m-%d").date()
         expiry_date = purchase_date + relativedelta(months=duration_months)
         today = date.today()
-        
+
         if today > expiry_date:
             return "🔴 Expired", "Expired", 0
-        
-        # Hitung selisih hari
+
         delta = expiry_date - today
         total_days = delta.days
         months = total_days // 30
         days = total_days % 30
-        
+
         teks = ""
         if months > 0:
             teks += f"{months} Bln "
@@ -150,13 +144,12 @@ def calculate_warranty(purchase_datetime_str, duration_months):
             teks += f"{days} Hari "
         if teks == "":
             teks = "0 Hari"
-        
-        # Hitung total detik sampai expiry (untuk countdown)
+
         expiry_datetime = datetime.combine(expiry_date, datetime.min.time())
         seconds_left = (expiry_datetime - datetime.now()).total_seconds()
         if seconds_left < 0:
             seconds_left = 0
-        
+
         return "🟢 Aktif", teks.strip(), int(seconds_left)
     except Exception:
         return "🔴 Error", "Data Tidak Valid", 0
@@ -174,7 +167,7 @@ def get_data():
     conn.close()
     if df_raw.empty:
         return pd.DataFrame()
-    
+
     processed = []
     for _, row in df_raw.iterrows():
         status_icon, sisa_teks, sisa_detik = calculate_warranty(
@@ -198,7 +191,6 @@ def clear_cache():
 
 def insert_data(sn, produk, pelanggan, tgl_beli, durasi):
     try:
-        # Set jam ke 00:00:00
         datetime_combined = datetime.combine(tgl_beli, datetime.min.time()).strftime("%Y-%m-%d %H:%M:%S")
         conn = sqlite3.connect("warranty_data.db")
         c = conn.cursor()
@@ -296,7 +288,7 @@ with st.sidebar:
         if btn_logout:
             st.session_state['logged_in'] = False
             st.rerun()
-        
+
         st.markdown("---")
         st.subheader("📝 Input Garansi Baru")
         with st.form("form_input", clear_on_submit=True):
@@ -317,12 +309,12 @@ with st.sidebar:
                         st.error("❌ Gagal! Nomor Serial sudah terdaftar.")
                 else:
                     st.warning("⚠️ Mohon isi semua kolom yang wajib!")
-        
+
         st.markdown("---")
         st.subheader("🗑️ Hapus Data Garansi")
         with st.form("form_hapus", clear_on_submit=True):
             hapus_sn = st.text_input("Nomor Serial yang Ingin Dihapus:", placeholder="Masukkan nomor serial...")
-            konfirmasi = st.checkbox("Saya yakin ingin menghapus data ini secara permanen!")
+            konfirmasi = st.checkbox("☑️ Saya yakin ingin menghapus data ini secara permanen!")
             submit_hapus = st.form_submit_button("Hapus Permanen")
             if submit_hapus:
                 if not konfirmasi:
@@ -338,17 +330,15 @@ with st.sidebar:
                     st.warning("⚠️ Masukkan Nomor Serial terlebih dahulu!")
 
 # -------------------------------------------------------------------------
-# AREA ADMIN: TABEL DATA (HANYA JIKA LOGIN)
+# AREA ADMIN: TABEL DATA & GRAFIK (HANYA JIKA LOGIN)
 # -------------------------------------------------------------------------
 if st.session_state['logged_in']:
     st.write("### 📋 Semua Data Garansi (Sisi Admin)")
     if not df_garansi.empty:
-        # Buat salinan tanpa kolom SisaDetik dan Foto_Base64
         df_tampil = df_garansi.drop(columns=["SisaDetik", "Foto_Base64"]).copy()
-        # Tambahkan kolom No urut mulai 1
         df_tampil.insert(0, "No", range(1, len(df_tampil) + 1))
         st.dataframe(df_tampil, use_container_width=True)
-        
+
         csv_data = df_tampil.to_csv(index=False).encode('utf-8')
         st.download_button(
             label="📥 Unduh Semua Data Garansi (CSV/Excel)",
@@ -357,18 +347,15 @@ if st.session_state['logged_in']:
             mime="text/csv",
             use_container_width=True
         )
-            # ==========================================
-    # GRAFIK STATISTIK GARANSI (di area admin)
-    # ==========================================
-    if not df_garansi.empty:
+
+        # ============================
+        # GRAFIK STATISTIK
+        # ============================
         st.write("### 📊 Statistik Garansi")
-        
-        # Hitung jumlah status
         status_counts = df_garansi['Status'].value_counts()
         aktif = status_counts.get('🟢 Aktif', 0)
         expired = status_counts.get('🔴 Expired', 0)
-        
-        # Tampilkan metrik (total, aktif, expired) dalam 3 kolom
+
         col1, col2, col3 = st.columns(3)
         with col1:
             st.metric("📦 Total Data", len(df_garansi))
@@ -376,27 +363,25 @@ if st.session_state['logged_in']:
             st.metric("🟢 Aktif", aktif)
         with col3:
             st.metric("🔴 Expired", expired)
-        
-        # Buat pie chart
-        import matplotlib.pyplot as plt
+
+        # Pie chart
         fig, ax = plt.subplots(figsize=(6, 4))
         colors = ['#2ecc71' if x == '🟢 Aktif' else '#e74c3c' for x in status_counts.index]
         wedges, texts, autotexts = ax.pie(
-            status_counts, 
-            labels=status_counts.index, 
-            autopct='%1.1f%%', 
-            colors=colors, 
+            status_counts,
+            labels=status_counts.index,
+            autopct='%1.1f%%',
+            colors=colors,
             startangle=90,
             textprops={'fontsize': 12}
         )
-        # Perbaiki warna teks persentase agar terbaca
         for autotext in autotexts:
             autotext.set_color('white')
             autotext.set_fontweight('bold')
         ax.axis('equal')
         st.pyplot(fig)
-    else:
-        st.info("Belum ada data untuk ditampilkan.")
+        # ============================
+
     else:
         st.info("Database masih kosong. Silakan tambah data melalui formulir di sidebar kiri.")
 else:
