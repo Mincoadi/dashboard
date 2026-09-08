@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import sqlite3
-import time  # Fitur baru untuk jeda waktu otomatis
+import time
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 
@@ -14,7 +14,6 @@ PASSWORD_ADMIN = "admin123"
 def init_db():
     conn = sqlite3.connect("warranty_data.db")
     cursor = conn.cursor()
-    # Menggunakan DATETIME (bukan TEXT biasa) agar mencatat jam menit saat dibeli
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS warranties_v4 (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -35,29 +34,21 @@ init_db()
 # --- FUNGSI HITUNG MUNDUR SUPER DETAIL ---
 def calculate_precise_warranty(purchase_datetime_str, duration_months):
     try:
-        # Mengubah teks menjadi format waktu lengkap (Tahun-Bulan-Hari Jam:Menit:Detik)
         purchase_dt = datetime.strptime(purchase_datetime_str, "%Y-%m-%d %H:%M:%S")
         now = datetime.now()
-        
-        # Menghitung waktu pasti kapan garansi habis
         expiry_dt = purchase_dt + relativedelta(months=duration_months)
         
         if now >= expiry_dt:
             return "🔴 Expired", "Expired"
         
-        # Menghitung selisih total waktu tersisa
         time_left = expiry_dt - now
-        
-        # Menghitung sisa hari, jam, menit, dan detik secara presisi
         days = time_left.days
         hours, remainder = divmod(time_left.seconds, 3600)
         minutes, seconds = divmod(remainder, 60)
         
-        # Menghitung sisa bulan dari sisa hari
         months = days // 30
         remaining_days = days % 30
         
-        # Menyusun teks tampilan detail
         if months > 0:
             text = f"{months} Bln {remaining_days} Hari, {hours} Jam {minutes} Mnt {seconds} Dtk"
         elif remaining_days > 0:
@@ -95,9 +86,7 @@ def get_data():
 
 def insert_data(sn, produk, pelanggan, tgl_beli, jam_beli, durasi):
     try:
-        # Menggabungkan tanggal dan jam menjadi satu kesatuan string waktu
         datetime_combined = datetime.combine(tgl_beli, jam_beli).strftime("%Y-%m-%d %H:%M:%S")
-        
         conn = sqlite3.connect("warranty_data.db")
         cursor = conn.cursor()
         cursor.execute("""
@@ -111,6 +100,7 @@ def insert_data(sn, produk, pelanggan, tgl_beli, jam_beli, durasi):
         return False
 
 def delete_data(sn):
+    conn = sqlite3.connect("warranty_v4")
     conn = sqlite3.connect("warranty_data.db")
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM warranties_v4 WHERE serial_number = ?", (sn,))
@@ -128,7 +118,6 @@ if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
 
 # --- TAMPILAN UTAMA DASHBOARD ---
-# Menampilkan Foto Logo dari folder GitHub Anda secara lokal
 try:
     st.image("15976.jpg", width=150)
 except Exception:
@@ -157,7 +146,6 @@ if cari_sn:
 
 st.markdown("---")
 
-
 # TAMPILAN 2: PANEL SIDEBAR & MENU ADMIN
 with st.sidebar:
     st.header("🔐 Area Admin")
@@ -183,18 +171,14 @@ with st.sidebar:
             st.rerun()
             
         st.markdown("---")
-        
-        # FORMULIR 1: INPUT GARANSI BARU DENGAN JAM MENIT
         st.subheader("📝 Input Garansi Baru")
+        
         with st.form("form_input", clear_on_submit=True):
             input_sn = st.text_input("Nomor Serial:", placeholder="Contoh: SN-2026-001")
             input_produk = st.text_input("Nama Produk:", placeholder="Contoh: Mobil Mainan")
             input_pelanggan = st.text_input("Nama Pelanggan:", placeholder="Contoh: Pasep")
-            
-            # FITUR BARU: Input Kalender dan Input Jam Transaksi
             input_tgl = st.date_input("Tanggal Pembelian:", value=datetime.today().date())
             input_jam = st.time_input("Jam Pembelian:", value=datetime.today().time())
-            
             input_durasi = st.number_input("Durasi Garansi (Bulan):", min_value=1, max_value=120, value=12)
             
             submit_button = st.form_submit_button("Simpan Data")
@@ -210,8 +194,6 @@ with st.sidebar:
                     st.warning("⚠️ Mohon isi semua kolom yang wajib!")
 
         st.markdown("---")
-        
-        # FORMULIR 2: HAPUS DATA GARANSI
         st.subheader("🗑️ Hapus Data Garansi")
         with st.form("form_hapus", clear_on_submit=True):
             hapus_sn = st.text_input("Nomor Serial yang Ingin Dihapus:", placeholder="Masukkan nomor serial...")
@@ -226,7 +208,6 @@ with st.sidebar:
                         st.error("❌ Gagal! Nomor Serial tidak ditemukan di database.")
                 else:
                     st.warning("⚠️ Masukkan Nomor Serial terlebih dahulu!")
-
 
 # TAMPILAN 3: TABEL DATA ADMIN
 if st.session_state['logged_in']:
@@ -249,3 +230,5 @@ else:
 
 # --- AUTO REFRESH HALAMAN (Agar detik hitung mundur berjalan live) ---
 if cari_sn or st.session_state['logged_in']:
+    time.sleep(1)
+    st.rerun()
