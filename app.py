@@ -228,27 +228,24 @@ if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
 
 # ==========================================
-# 8. TAMPILAN UTAMA (HEADER DENGAN 2 GAMBAR)
+# 8. TAMPILAN UTAMA (HEADER: GAMBAR DI ATAS, JUDUL DI BAWAH)
 # ==========================================
-# Buat 3 kolom: logo1, logo2, judul
-col1, col2, col3 = st.columns([1, 1, 4])
-
+# Baris pertama: dua gambar bersebelahan
+col1, col2 = st.columns([1, 1])
 with col1:
     if os.path.exists("images (5).jpg"):
-        st.image("images (5).jpg", width=130)
+        st.image("images (5).jpg", width=150)
     else:
-        st.write("📦")  # fallback jika file tidak ada
-
+        st.write("📦")
 with col2:
     if os.path.exists("images (3).jpg"):
-        st.image("images (3).jpg", width=130)
+        st.image("images (3).jpg", width=150)
     else:
-        st.write("📦")  # fallback
+        st.write("📦")
 
-with col3:
-    st.title("Portal Garansi Produk Resmi")
-    st.caption("Sistem Pelacakan Garansi untuk Pelanggan & Panel Manajemen Admin")
-
+# Baris kedua: judul dan caption (di bawah gambar)
+st.title("Portal Garansi Produk Resmi")
+st.caption("Sistem Pelacakan Garansi untuk Pelanggan & Panel Manajemen Admin")
 st.markdown("---")
 
 df_garansi = get_data()
