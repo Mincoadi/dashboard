@@ -48,6 +48,24 @@ st.markdown("""
         padding: 10px;
         background-color: #ebf5fb;
     }
+
+    /* ===== PERBAIKAN: HEADER GAMBAR RAPAT ===== */
+    /* Kurangi padding antar kolom pada baris pertama */
+    div[data-testid="column"]:has(img) {
+        padding: 0px !important;
+        margin: 0px !important;
+    }
+    /* Buat container gambar menjadi flex agar rapat */
+    .header-gambar {
+        display: flex;
+        align-items: center;
+        gap: 5px; /* jarak antar gambar */
+        margin-bottom: 5px;
+    }
+    .header-gambar img {
+        max-width: 140px;
+        height: auto;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -228,18 +246,20 @@ if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
 
 # ==========================================
-# 8. TAMPILAN UTAMA (HEADER: GAMBAR DI ATAS, JUDUL DI BAWAH)
+# 8. TAMPILAN UTAMA (HEADER: GAMBAR RAPAT)
 # ==========================================
-# Baris pertama: dua gambar bersebelahan
-col1, col2 = st.columns([1, 1])
+# Ganti kolom dengan rasio yang lebih kecil agar gambar rapat
+col1, col2 = st.columns([0.3, 0.3])  # lebih sempit agar dekat
+
 with col1:
     if os.path.exists("images (5).jpg"):
-        st.image("images (5).jpg", width=150)
+        st.image("images (5).jpg", width=140)
     else:
         st.write("📦")
+
 with col2:
     if os.path.exists("images (3).svg"):
-        st.image("images (3).svg", width=150)
+        st.image("images (3).svg", width=140)
     else:
         st.write("📦")
 
