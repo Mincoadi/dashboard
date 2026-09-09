@@ -2,32 +2,36 @@ import streamlit as st
 import pandas as pd
 import sqlite3
 import os
+import sys
 from datetime import datetime, date
 from dateutil.relativedelta import relativedelta
 import streamlit.components.v1 as components
 import matplotlib.pyplot as plt
 
 # ==========================================
-# 1. KONFIGURASI HALAMAN
+# CEK VERSI STREAMLIT (Opsional)
+# ==========================================
+st_version = st.__version__
+if st_version < "1.30":
+    st.warning(f"Versi Streamlit Anda {st_version}. Disarankan upgrade ke 1.33 atau lebih tinggi untuk fitur terbaik.")
+
+# ==========================================
+# KONFIGURASI HALAMAN
 # ==========================================
 st.set_page_config(page_title="Portal Garansi", page_icon="📦", layout="wide")
 
 # ==========================================
-# 1b. KUSTOMISASI WARNA SIDEBAR & HEADER RAPAT
+# STYLING
 # ==========================================
 st.markdown("""
 <style>
-    /* SIDEBAR */
     [data-testid="stSidebar"] {
         background-color: #d4e6f1;
     }
     [data-testid="stSidebar"] * {
         color: #154360;
     }
-    [data-testid="stSidebar"] h1,
-    [data-testid="stSidebar"] h2,
-    [data-testid="stSidebar"] h3,
-    [data-testid="stSidebar"] h4 {
+    [data-testid="stSidebar"] h1, h2, h3, h4 {
         color: #0b3d5c;
     }
     [data-testid="stSidebar"] .stButton > button {
@@ -37,7 +41,6 @@ st.markdown("""
     }
     [data-testid="stSidebar"] .stButton > button:hover {
         background-color: #1a5276;
-        color: white;
     }
     [data-testid="stSidebar"] .stTextInput > div > div > input {
         background-color: #ffffff;
@@ -49,8 +52,14 @@ st.markdown("""
         padding: 10px;
         background-color: #ebf5fb;
     }
-
-    /* HEADER RAPAT */
+    .main-title {
+        margin-top: -15px !important;
+        margin-bottom: 0px !important;
+    }
+    .main-caption {
+        margin-top: -10px !important;
+        margin-bottom: 5px !important;
+    }
     div[data-testid="column"]:has(img) {
         padding: 0px !important;
         margin: 0px !important;
@@ -58,89 +67,78 @@ st.markdown("""
     .stImage {
         margin-bottom: -10px !important;
     }
-    /* Hilangkan margin pada judul dan caption */
-    .main-title {
-        margin-top: -15px !important;
-        margin-bottom: 0px !important;
-        padding-top: 0px !important;
-    }
-    .main-caption {
-        margin-top: -10px !important;
-        margin-bottom: 5px !important;
-    }
-    /* Hilangkan margin pada elemen header pertama */
-    .stMarkdown:first-child {
-        margin: 0 !important;
-        padding: 0 !important;
-    }
 </style>
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. KREDENSIAL ADMIN
+# KREDENSIAL ADMIN
 # ==========================================
 USER_ADMIN = "admin"
 PASSWORD_ADMIN = "admin123"
 
 # ==========================================
-# 3. FUNGSI COUNTDOWN
+# FUNGSI COUNTDOWN
 # ==========================================
 def get_countdown_component(seconds_left, uid, height=50):
     if seconds_left <= 0:
-        return components.html("<span style='color:red; font-weight:bold;'>🔴 Expired</span>", height=30)
-    html_code = f"""
-    <div id="countdown_{uid}" style="font-size:16px; font-weight:bold;"></div>
+        return components.html("<span style='color:red;font-weight:bold;'>🔴 Expired</span>", height=30)
+    html = f"""
+    <div id="cd_{uid}" style="font-size:16px;font-weight:bold;"></div>
     <script>
-    (function() {{
-        let remaining = {int(seconds_left)};
-        const el = document.getElementById('countdown_{uid}');
-        if (!el) return;
-        function update() {{
-            if (remaining <= 0) {{
-                el.innerHTML = '🔴 Expired';
-                return;
-            }}
-            const totalDays = Math.floor(remaining / (24 * 3600));
-            const months = Math.floor(totalDays / 30);
-            const days = totalDays % 30;
-            let text = '';
-            if (months > 0) text += months + ' Bln ';
-            if (days > 0) text += days + ' Hari ';
-            if (text === '') text = '0 Hari';
-            el.innerHTML = '🟢 ' + text;
-            remaining--;
+    (function(){{
+        let r = {int(seconds_left)};
+        const el = document.getElementById('cd_{uid}');
+        if(!el) return;
+        function u(){{
+            if(r<=0){{ el.innerHTML='🔴 Expired'; return; }}
+            const d = Math.floor(r/(24*3600));
+            const m = Math.floor(d/30);
+            const day = d%30;
+            let t='';
+            if(m>0) t+=m+' Bln ';
+            if(day>0) t+=day+' Hari ';
+            if(t==='') t='0 Hari';
+            el.innerHTML='🟢 '+t;
+            r--;
         }}
-        update();
-        setInterval(update, 1000);
+        u();
+        setInterval(u,1000);
     }})();
     </script>
     """
-    return components.html(html_code, height=height)
+    return components.html(html, height=height)
 
 # ==========================================
-# 4. DATABASE
+# DATABASE INIT
 # ==========================================
+DB_NAME = "warranty_data.db"
+TABLE_NAME = "warranties_v4"
+
 def init_db():
-    conn = sqlite3.connect("warranty_data.db")
-    c = conn.cursor()
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS warranties_v4 (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            serial_number TEXT UNIQUE,
-            product_name TEXT,
-            customer_name TEXT,
-            purchase_datetime TEXT,
-            duration_months INTEGER,
-            status TEXT,
-            product_image TEXT
-        )
-    """)
-    conn.commit()
-    conn.close()
-init_db()
+    try:
+        conn = sqlite3.connect(DB_NAME)
+        c = conn.cursor()
+        c.execute(f"""
+            CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                serial_number TEXT UNIQUE,
+                product_name TEXT,
+                customer_name TEXT,
+                purchase_datetime TEXT,
+                duration_months INTEGER,
+                status TEXT,
+                product_image TEXT
+            )
+        """)
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        st.error(f"Error inisialisasi database: {e}")
+        return False
 
 # ==========================================
-# 5. FUNGSI HITUNG SISA
+# FUNGSI HITUNG SISA
 # ==========================================
 def calculate_warranty(purchase_datetime_str, duration_months):
     try:
@@ -165,109 +163,128 @@ def calculate_warranty(purchase_datetime_str, duration_months):
         if seconds_left < 0:
             seconds_left = 0
         return "🟢 Aktif", teks.strip(), int(seconds_left)
-    except Exception:
+    except Exception as e:
         return "🔴 Error", "Data Tidak Valid", 0
 
 # ==========================================
-# 6. CRUD
+# CRUD DATABASE
 # ==========================================
 @st.cache_data(ttl=5)
 def get_data():
-    conn = sqlite3.connect("warranty_data.db")
-    df_raw = pd.read_sql_query(
-        "SELECT serial_number, product_name, customer_name, purchase_datetime, duration_months, status, product_image FROM warranties_v4",
-        conn
-    )
-    conn.close()
-    if df_raw.empty:
+    try:
+        conn = sqlite3.connect(DB_NAME)
+        df_raw = pd.read_sql_query(f"SELECT serial_number, product_name, customer_name, purchase_datetime, duration_months, status, product_image FROM {TABLE_NAME}", conn)
+        conn.close()
+        if df_raw.empty:
+            return pd.DataFrame()
+        processed = []
+        for _, row in df_raw.iterrows():
+            status_icon, sisa_teks, sisa_detik = calculate_warranty(
+                row['purchase_datetime'], int(row['duration_months'])
+            )
+            processed.append({
+                "Nomor Serial": row['serial_number'],
+                "Nama Produk": row['product_name'],
+                "Pelanggan": row['customer_name'],
+                "Waktu Beli": row['purchase_datetime'],
+                "Durasi Awal": f"{row['duration_months']} Bulan",
+                "Sisa Garansi": sisa_teks,
+                "SisaDetik": sisa_detik,
+                "Status": status_icon,
+                "Foto_Base64": row['product_image']
+            })
+        return pd.DataFrame(processed)
+    except Exception as e:
+        st.error(f"Error mengambil data: {e}")
         return pd.DataFrame()
-    processed = []
-    for _, row in df_raw.iterrows():
-        status_icon, sisa_teks, sisa_detik = calculate_warranty(
-            row['purchase_datetime'], int(row['duration_months'])
-        )
-        processed.append({
-            "Nomor Serial": row['serial_number'],
-            "Nama Produk": row['product_name'],
-            "Pelanggan": row['customer_name'],
-            "Waktu Beli": row['purchase_datetime'],
-            "Durasi Awal": f"{row['duration_months']} Bulan",
-            "Sisa Garansi": sisa_teks,
-            "SisaDetik": sisa_detik,
-            "Status": status_icon,
-            "Foto_Base64": row['product_image']
-        })
-    return pd.DataFrame(processed)
 
 def clear_cache():
     st.cache_data.clear()
 
 def insert_data(sn, produk, pelanggan, tgl_beli, durasi):
     try:
-        datetime_combined = datetime.combine(tgl_beli, datetime.min.time()).strftime("%Y-%m-%d %H:%M:%S")
-        conn = sqlite3.connect("warranty_data.db")
+        dt = datetime.combine(tgl_beli, datetime.min.time()).strftime("%Y-%m-%d %H:%M:%S")
+        conn = sqlite3.connect(DB_NAME)
         c = conn.cursor()
-        c.execute("""
-            INSERT INTO warranties_v4
+        c.execute(f"""
+            INSERT INTO {TABLE_NAME}
             (serial_number, product_name, customer_name, purchase_datetime, duration_months, status, product_image)
             VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (sn, produk, pelanggan, datetime_combined, int(durasi), "Aktif", ""))
+        """, (sn, produk, pelanggan, dt, int(durasi), "Aktif", ""))
         conn.commit()
         conn.close()
         clear_cache()
         return True
     except sqlite3.IntegrityError:
         return False
+    except Exception as e:
+        st.error(f"Error insert: {e}")
+        return False
 
 def delete_data(sn):
-    conn = sqlite3.connect("warranty_data.db")
-    c = conn.cursor()
-    c.execute("SELECT * FROM warranties_v4 WHERE serial_number = ?", (sn,))
-    data = c.fetchone()
-    if data is None:
+    try:
+        conn = sqlite3.connect(DB_NAME)
+        c = conn.cursor()
+        c.execute(f"SELECT * FROM {TABLE_NAME} WHERE serial_number = ?", (sn,))
+        data = c.fetchone()
+        if data is None:
+            conn.close()
+            return False
+        c.execute(f"DELETE FROM {TABLE_NAME} WHERE serial_number = ?", (sn,))
+        conn.commit()
         conn.close()
+        clear_cache()
+        return True
+    except Exception as e:
+        st.error(f"Error delete: {e}")
         return False
-    c.execute("DELETE FROM warranties_v4 WHERE serial_number = ?", (sn,))
-    conn.commit()
-    conn.close()
-    clear_cache()
-    return True
 
 # ==========================================
-# 7. SESSION STATE
+# SESSION STATE
 # ==========================================
 if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
 
 # ==========================================
-# 8. HEADER RAPAT (PAKAI st.image, TANPA BASE64)
+# INISIALISASI DATABASE (TAMBAHKAN ERROR HANDLING)
 # ==========================================
-# Baris pertama: dua gambar
+if not init_db():
+    st.stop()  # Hentikan jika database gagal
+
+# ==========================================
+# HEADER (GAMBAR RAPAT)
+# ==========================================
 col1, col2 = st.columns([0.3, 0.3])
 with col1:
-    if os.path.exists("images (5).jpg"):
-        st.image("images (5).jpg", width=140)
-    else:
+    try:
+        if os.path.exists("images (5).jpg"):
+            st.image("images (5).jpg", width=130)
+        else:
+            st.write("📦")
+    except Exception:
         st.write("📦")
 with col2:
-    if os.path.exists("images (3).svg"):
-        st.image("images (3).svg", width=140)
-    else:
+    try:
+        if os.path.exists("images (3).svg"):
+            st.image("images (3).svg", width=130)
+        else:
+            st.write("📦")
+    except Exception:
         st.write("📦")
 
-# Baris kedua: judul dengan CSS inline (lebih rapat)
 st.markdown("""
-    <h1 style="margin-top: -15px; margin-bottom: 0px; padding-top: 0px; font-size: 2.5rem;">
-        Portal Garansi Produk Resmi
-    </h1>
-    <p style="margin-top: -10px; margin-bottom: 5px; font-size: 1rem; color: #666;">
-        Sistem Pelacakan Garansi untuk Pelanggan & Panel Manajemen Admin
-    </p>
+    <h1 class="main-title">Portal Garansi Produk Resmi</h1>
+    <p class="main-caption">Sistem Pelacakan Garansi untuk Pelanggan & Panel Manajemen Admin</p>
 """, unsafe_allow_html=True)
 
 st.markdown("---")
 
+# ==========================================
+# AMBIL DATA
+# ==========================================
 df_garansi = get_data()
+if df_garansi is None:
+    df_garansi = pd.DataFrame()
 
 # -------------------------------------------------------------------------
 # AREA PELANGGAN
@@ -334,7 +351,7 @@ with st.sidebar:
                         st.success("🎉 Data berhasil disimpan!")
                         st.rerun()
                     else:
-                        st.error("❌ Gagal! Nomor Serial sudah terdaftar.")
+                        st.error("❌ Gagal! Nomor Serial sudah terdaftar atau error.")
                 else:
                     st.warning("⚠️ Mohon isi semua kolom yang wajib!")
         st.markdown("---")
@@ -357,7 +374,7 @@ with st.sidebar:
                     st.warning("⚠️ Masukkan Nomor Serial terlebih dahulu!")
 
 # -------------------------------------------------------------------------
-# AREA ADMIN
+# AREA ADMIN (Gunakan st.expander)
 # -------------------------------------------------------------------------
 if st.session_state['logged_in']:
     st.write("### 📋 Semua Data Garansi (Sisi Admin)")
@@ -375,27 +392,30 @@ if st.session_state['logged_in']:
             use_container_width=True
         )
 
-        # POPOVER 1: MONITORING UNIT WARRANTY
-        with st.popover("📋 Monitoring Unit Warranty", use_container_width=True):
+        # ===== EXPANDER 1: MONITORING =====
+        with st.expander("📋 Monitoring Unit Warranty", expanded=False):
             st.write("### 📋 Monitoring Unit Warranty")
             st.caption("Jumlah unit garansi per pelanggan")
             customer_counts = df_garansi['Pelanggan'].value_counts().reset_index()
             customer_counts.columns = ['Pelanggan', 'Jumlah Unit']
             st.dataframe(customer_counts, use_container_width=True, hide_index=True)
-            fig, ax = plt.subplots(figsize=(6, 3))
-            bars = ax.barh(customer_counts['Pelanggan'], customer_counts['Jumlah Unit'], color='#2e86c1')
-            ax.set_xlabel('Jumlah Unit')
-            ax.set_ylabel('Pelanggan')
-            ax.set_title('Jumlah Unit Garansi per Pelanggan')
-            for bar in bars:
-                width = bar.get_width()
-                ax.text(width + 0.1, bar.get_y() + bar.get_height()/2, f'{int(width)}', 
-                        va='center', ha='left', fontweight='bold', fontsize=10)
-            plt.tight_layout()
-            st.pyplot(fig)
+            if not customer_counts.empty:
+                fig, ax = plt.subplots(figsize=(6, 3))
+                bars = ax.barh(customer_counts['Pelanggan'], customer_counts['Jumlah Unit'], color='#2e86c1')
+                ax.set_xlabel('Jumlah Unit')
+                ax.set_ylabel('Pelanggan')
+                ax.set_title('Jumlah Unit Garansi per Pelanggan')
+                for bar in bars:
+                    width = bar.get_width()
+                    ax.text(width + 0.1, bar.get_y() + bar.get_height()/2, f'{int(width)}',
+                            va='center', ha='left', fontweight='bold', fontsize=10)
+                plt.tight_layout()
+                st.pyplot(fig)
+            else:
+                st.info("Belum ada data pelanggan.")
 
-        # POPOVER 2: STATISTIK GARANSI
-        with st.popover("📊 Lihat Statistik Garansi", use_container_width=True):
+        # ===== EXPANDER 2: STATISTIK =====
+        with st.expander("📊 Lihat Statistik Garansi", expanded=False):
             st.write("### 📊 Statistik Garansi")
             status_counts = df_garansi['Status'].value_counts()
             aktif = status_counts.get('🟢 Aktif', 0)
@@ -407,21 +427,20 @@ if st.session_state['logged_in']:
                 st.metric("🟢 Aktif", aktif)
             with col3:
                 st.metric("🔴 Expired", expired)
-            fig, ax = plt.subplots(figsize=(6, 4))
-            colors = ['#2ecc71' if x == '🟢 Aktif' else '#e74c3c' for x in status_counts.index]
-            wedges, texts, autotexts = ax.pie(
-                status_counts,
-                labels=status_counts.index,
-                autopct='%1.1f%%',
-                colors=colors,
-                startangle=90,
-                textprops={'fontsize': 12}
-            )
-            for autotext in autotexts:
-                autotext.set_color('white')
-                autotext.set_fontweight('bold')
-            ax.axis('equal')
-            st.pyplot(fig)
+            if not status_counts.empty:
+                fig, ax = plt.subplots(figsize=(6, 4))
+                colors = ['#2ecc71' if x == '🟢 Aktif' else '#e74c3c' for x in status_counts.index]
+                wedges, texts, autotexts = ax.pie(
+                    status_counts, labels=status_counts.index, autopct='%1.1f%%',
+                    colors=colors, startangle=90, textprops={'fontsize': 12}
+                )
+                for autotext in autotexts:
+                    autotext.set_color('white')
+                    autotext.set_fontweight('bold')
+                ax.axis('equal')
+                st.pyplot(fig)
+            else:
+                st.info("Belum ada data status.")
     else:
         st.info("Database masih kosong. Silakan tambah data melalui formulir di sidebar kiri.")
 else:
@@ -432,3 +451,9 @@ else:
 # -------------------------------------------------------------------------
 st.divider()
 st.caption("© 2026 Portal Garansi Resmi. Hak Cipta Dilindungi.")
+
+# -------------------------------------------------------------------------
+# TAMBAHKAN INI UNTUK DEBUG (OPSIONAL)
+# -------------------------------------------------------------------------
+# st.write("Debug: Versi Streamlit", st.__version__)
+# st.write("Debug: Jumlah data", len(df_garansi))
